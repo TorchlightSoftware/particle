@@ -1,0 +1,33 @@
+{
+   "name":"particle",
+   "description":"",
+   "version":"0.0.1",
+   "homepage":"http://github.com/TorchlightSoftware/particle",
+   "repository":"git://github.com/TorchlightSoftware/particle.git",
+   "author":"Torchlight Software <info@torchlightsoftware.com>",
+   "main":"./index.js",
+
+   "dependencies":{
+      "coffee-script":"*",
+      "lodash":"*",
+      "protosock":"*"
+   },
+   "devDependencies":{
+      "mongodb":"*",
+      "mongo-watch":"*",
+      "mocha":"*",
+      "should":"*"
+   },
+   "scripts":{
+      "test":"mocha --compilers coffee:coffee-script --ignore-leaks --reporter spec"
+   },
+   "engines":{
+      "node":">= 0.8.0"
+   },
+   "licenses":[
+      {
+         "type":"MIT",
+         "url":"http://github.com/TorchlightSoftware/particle/raw/master/LICENSE"
+      }
+   ]
+}
