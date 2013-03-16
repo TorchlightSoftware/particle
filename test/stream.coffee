@@ -28,7 +28,7 @@ describe 'Stream', ->
       @stream = new Stream mongoWatchPolicy @users
 
       # Then the receiver should return the expected data
-      receiver = (name, event) ->
+      receiver = (name, event) =>
         should.exist event.timestamp
 
         switch name
@@ -46,6 +46,11 @@ describe 'Stream', ->
               root: 'users'
             }
 
+            # And something event worthy happens
+            # (only trigger this once initial data has been received)
+            @users.insert {email: 'graham@daventry.com'}, (err, status) ->
+              should.not.exist err
+
           when 'delta'
             {root, oplist} = event
             [{data, operation}] = oplist
@@ -58,7 +63,3 @@ describe 'Stream', ->
       # When a receiver is registered
       @stream.register {sessionId: 5}, receiver, (err) =>
         should.not.exist err
-
-        # And something event worthy happens
-        @users.insert {email: 'graham@daventry.com'}, (err, status) ->
-          should.not.exist err
