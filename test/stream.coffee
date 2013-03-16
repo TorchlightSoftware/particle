@@ -32,6 +32,8 @@ describe 'Stream', ->
         should.exist event.timestamp
 
         switch name
+
+          # I should receive a manifest
           when 'manifest'
             event.should.include {
               users:
@@ -40,18 +42,21 @@ describe 'Stream', ->
                   list: true
             }
 
+          # And I should receive a payload
           when 'payload'
             event.should.include {
               data: []
               root: 'users'
             }
 
-            # And something event worthy happens
+            # When something event worthy happens
             # (only trigger this once initial data has been received)
             @users.insert {email: 'graham@daventry.com'}, (err, status) ->
               should.not.exist err
 
           when 'delta'
+
+            # Then I should receive a delta
             {root, oplist} = event
             [{data, operation}] = oplist
 
