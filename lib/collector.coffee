@@ -1,7 +1,7 @@
 {EventEmitter} = require 'events'
 {objInclude, find, box} = require './util'
 normalizePayload = require './normalizePayload'
-_ = require 'lodash'
+applyOp = require './applyOp'
 
 class Collector extends EventEmitter
 
@@ -34,45 +34,6 @@ class Collector extends EventEmitter
     @lastUpdated = new Date event.timestamp
     @debug 'Received data.', {name, event}
 
-    applyOp = ({root, oplist}) =>
-
-      for op in oplist
-
-        # get required params
-        {path, id, data, operation} = op
-
-        # get or create document
-        node = _.find @data[root], (n) -> n.id is id
-        unless node
-          node = {id: id}
-          @data[root].push node
-
-        if path is '.'
-          # rewind target/node so root can be set
-          target = @data[root].indexOf node
-          node = @data[root]
-          data = _.extend data, {id: id}
-
-        else
-          # walk down through the target document
-          [location..., target] = path.split '.'
-          for part in location
-            node[part] ?= {} # TODO: maybe do []/{} depending on manifest?
-            node = node[part]
-
-        # apply the appropriate change
-        @debug "Updating data with '#{operation}'."
-        switch operation
-          when 'set'
-            node[target] = data
-          when 'unset'
-            delete node[target]
-          when 'inc'
-            node[target] += data
-          when 'rename'
-            node[data] = node[target]
-            delete node[target]
-
     switch name
 
       when 'manifest'
@@ -92,9 +53,9 @@ class Collector extends EventEmitter
 
       when 'delta'
         @ready =>
-          applyOp event
+          @debug "Updating collection '#{event.root}' with '#{event.oplist.map((o)->o.operation).join ','}'."
+          applyOp @data, event
           @emit 'data', @data, event
-
 
   checkReady: ->
     checkManifest = (data, manifest) ->

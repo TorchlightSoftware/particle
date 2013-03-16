@@ -28,7 +28,6 @@ describe 'Collector', ->
   it 'should receive an update delta', (done) ->
 
     @collector = new Collector
-
       identity:
         sessionId: 'foo'
 
