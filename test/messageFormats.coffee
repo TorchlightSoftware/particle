@@ -11,7 +11,7 @@ describe 'Stream - Policy Input', ->
     errors = streamInPolicy mongoWatchPolicy()
     errors.should.be.empty
 
-describe 'JSV', ->
+describe 'JSON validator', ->
 
   it 'should validate a function', ->
     errors = jsv.validate {fn: ->}, {
