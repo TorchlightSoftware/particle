@@ -5,6 +5,7 @@ This is a library for distributed state synchronization.  Clients can register w
 ## Client
 
 ```coffee-script
+particle = require 'particle'
 client = new particle.Client
 
   identity:
@@ -17,8 +18,10 @@ client = new particle.Client
 ## Server
 
 ```coffee-script
+particle = require 'particle'
 MongoWatch = require 'mongo-watch'
 watcher = new MongoWatch {format: 'normal'}
+users = # a collection from mongo driver or mongoose
 
 server = new particle.Server
   #onDebug: console.log
@@ -33,17 +36,23 @@ server = new particle.Server
         email: true
         todo: {list: true}
 
-      payload: # get initial data for this collection
+      payload: # get initial data for users
         (identity, done) ->
-          collection.find().toArray (err, data) ->
+          users.find().toArray (err, data) ->
             done err, {data: data, timestamp: new Date}
 
-      delta: # wire up deltas for this collection
+      delta: # wire up deltas for users
         (identity, listener) ->
           watcher.watch "test.users", listener
 
   disconnect: ->
     watcher.stopAll()
+```
+
+## Install
+
+```bash
+npm install particle
 ```
 
 ## LICENSE
