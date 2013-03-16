@@ -1,4 +1,3 @@
-#jsv = require('JSV').JSV.createEnvironment 'json-schema-draft-03'
 JaySchema = require 'jayschema'
 jsv = new JaySchema
 

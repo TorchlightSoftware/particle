@@ -4,7 +4,6 @@ mongoWatchPolicy = require '../sample/mongoWatchPolicy'
 
 JaySchema = require 'jayschema'
 jsv = new JaySchema
-#jsv = require('JSV').JSV.createEnvironment 'json-schema-draft-03'
 
 describe 'Stream - Policy Input', ->
 
