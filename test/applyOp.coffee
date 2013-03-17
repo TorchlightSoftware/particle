@@ -193,6 +193,44 @@ tests = [
         data: 'Jim'
       ]
     post: {users: [{id: 5, friends: ['Jim']}]}
+  ,
+    description: 'push should create an array'
+    pre: {users: [{id: 5}]}
+    op:
+      root: 'users'
+      timestamp: new Date
+      oplist: [
+        operation: 'push'
+        id: 5
+        path: 'friends'
+        data: 'Jim'
+      ]
+    post: {users: [{id: 5, friends: ['Jim']}]}
+  ,
+    description: 'pop should remove an element from the end'
+    pre: {users: [{id: 5, friends: ['Jane', 'Bob']}]}
+    op:
+      root: 'users'
+      timestamp: new Date
+      oplist: [
+        operation: 'pop'
+        id: 5
+        path: 'friends'
+      ]
+    post: {users: [{id: 5, friends: ['Jane']}]}
+  ,
+    description: 'pop should remove an element from the beginning'
+    pre: {users: [{id: 5, friends: ['Jane', 'Bob']}]}
+    op:
+      root: 'users'
+      timestamp: new Date
+      oplist: [
+        operation: 'pop'
+        id: 5
+        path: 'friends'
+        data: -1
+      ]
+    post: {users: [{id: 5, friends: ['Bob']}]}
 ]
 
 describe 'applyOp', ->

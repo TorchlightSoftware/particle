@@ -56,3 +56,8 @@ module.exports = (dataRoot, {root, oplist}) =>
       when 'push'
         node[target] or= []
         node[target].push data
+      when 'pop'
+        if data is -1
+          node[target].splice 0, 1
+        else
+          node[target].splice -1, 1
