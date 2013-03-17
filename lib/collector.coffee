@@ -2,6 +2,7 @@
 {objInclude, find, box} = require './util'
 normalizePayload = require './normalizePayload'
 applyOp = require './applyOp'
+_ = require 'lodash'
 
 class Collector extends EventEmitter
 
@@ -41,7 +42,7 @@ class Collector extends EventEmitter
         @checkReady()
 
       when 'payload'
-        @data[event.root] = event.data
+        @data[event.root] = _.clone event.data, true
 
         # format the data to look like a normal update
         # only tell listeners about it if we actually got data

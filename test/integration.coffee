@@ -1,11 +1,12 @@
 should = require 'should'
 {Collector, Stream} = require '../.'
 mongoWatchPolicy = require '../sample/mongoWatchPolicy'
-{Server, Db} = require 'mongodb'
+{Server, Db, ObjectID} = require 'mongodb'
 {isEqual} = require 'lodash'
 {inspect} = require 'util'
 {getType} = require '../lib/util'
 _ = require 'lodash'
+logger = (args...) -> console.log args.map((a) -> if (typeof a) is 'string' then a else inspect a, null, null)...
 
 describe 'Integration', ->
 
@@ -65,3 +66,56 @@ describe 'Integration', ->
       # And something event worthy happens
       @users.insert {email: 'graham@daventry.com'}, (err, status) ->
         should.not.exist err
+
+    it 'should work with sub documents', (done) ->
+
+      # Given I have a user record with a sub document
+      initialRecord =
+        email: 'graham@daventry.com'
+        friends: [
+            name: 'Bob'
+          ,
+            name: 'Sally'
+        ]
+
+      @users.insert initialRecord, (err) =>
+        should.not.exist err
+
+        # mongoose is modifying the arg I gave it to add an _id
+        initialRecord.id = initialRecord._id.toString()
+        delete initialRecord._id
+
+        @collector = new Collector
+          onDebug: logger
+          identity: {sessionId: 5}
+          register: @stream.register.bind @stream
+
+          # I should recieve a delta event
+          onData: (data, event) =>
+            if event?.oplist?[0]?.operation is 'push'
+              event.oplist[0].should.eql {
+                operation: 'push'
+                id: initialRecord.id
+                path: 'friends'
+                data: {name: 'Jim'}
+              }
+              data.should.eql
+                users: [{
+                  email: 'graham@daventry.com'
+                  friends: [
+                      name: 'Bob'
+                    ,
+                      name: 'Sally'
+                    ,
+                      name: 'Jim'
+                  ]
+                  id: initialRecord.id
+                }]
+              done()
+
+        @collector.ready =>
+          should.exist @collector.data?.users?[0]
+          @collector.data.users[0].should.eql initialRecord
+
+          @users.update {_id: new ObjectID initialRecord.id}, {'$push': friends: {name: 'Jim'}}, (err) ->
+            should.not.exist err

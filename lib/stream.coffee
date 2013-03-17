@@ -44,14 +44,14 @@ class Stream
               @error {identity: identity, context: 'Error retrieving payload.', error: err}
             else
               event = _.extend {}, initialData, {root: name}
+              @debug 'Sent payload.', {event, err}
               receive 'payload', event
-            @debug 'Sent payload.', {event, err}
 
           # respond with deltas over time
           delta identity, (change) =>
             event = _.extend {}, change, {root: name}
-            receive 'delta', event
             @debug 'Sent delta.', {event}
+            receive 'delta', event
 
       done()
 
