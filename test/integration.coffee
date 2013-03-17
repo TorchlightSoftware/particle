@@ -86,7 +86,7 @@ describe 'Integration', ->
         delete initialRecord._id
 
         @collector = new Collector
-          onDebug: logger
+          #onDebug: logger
           identity: {sessionId: 5}
           register: @stream.register.bind @stream
 

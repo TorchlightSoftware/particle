@@ -2,6 +2,7 @@
 should = require 'should'
 applyOp = require '../lib/applyOp'
 _ = require 'lodash'
+logger = (args...) -> console.log args.map((a) -> if (typeof a) is 'string' then a else inspect a, null, null)...
 
 tests = [
     description: 'set should create a new record in an existing collection'
@@ -179,6 +180,19 @@ tests = [
         data: 'enemies'
       ]
     post: {users: [{id: 5, enemies: 4}]}
+  ,
+    description: 'push should add to an array'
+    pre: {users: [{id: 5, friends: []}]}
+    op:
+      root: 'users'
+      timestamp: new Date
+      oplist: [
+        operation: 'push'
+        id: 5
+        path: 'friends'
+        data: 'Jim'
+      ]
+    post: {users: [{id: 5, friends: ['Jim']}]}
 ]
 
 describe 'applyOp', ->
@@ -188,4 +202,5 @@ describe 'applyOp', ->
       {pre, op, post, description} = test
       it description, ->
         applyOp pre, op
+        #logger 'pre:', pre, '\npost:', post
         pre.should.eql post

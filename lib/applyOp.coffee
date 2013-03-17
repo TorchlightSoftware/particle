@@ -53,3 +53,6 @@ module.exports = (dataRoot, {root, oplist}) =>
       when 'rename'
         node[data] = node[target]
         delete node[target]
+      when 'push'
+        node[target] or= []
+        node[target].push data
