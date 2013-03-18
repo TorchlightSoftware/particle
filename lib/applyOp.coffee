@@ -44,12 +44,25 @@ module.exports = (dataRoot, {root, oplist}) =>
           if operation in removers
             return
           else
-            node[part] = {} # TODO: maybe do []/{} depending on manifest?
+            node[part] = if arrayIndex then [] else {}
 
+        # walk to the next node
         node = node[part]
+
+        # if we have an array component, find the appropriate item and walk to it
         if arrayIndex
-          targetItem = _.find node, (item) -> item.id is arrayIndex
-          node = targetItem if targetItem
+          subDoc = _.find node, (item) -> item.id is arrayIndex
+
+          # if we can't find the subDoc, create it
+          unless subDoc?
+            if operation in removers
+              return
+            else
+              subDoc = {id: arrayIndex}
+              node.push subDoc
+
+          # walk to the subdoc
+          node = subDoc
 
     # apply the appropriate change
     switch operation
