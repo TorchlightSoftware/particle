@@ -40,7 +40,7 @@ module.exports =
       definitions:
         manifestNode:
           type: ['object', 'boolean']
-          additionalProperties:
+          additionalProperties: #TODO: change to regex, disallow []
             '$ref': '#/definitions/manifestNode'
     }
 
@@ -50,9 +50,17 @@ module.exports =
   streamOutManifest: (manifest) ->
 
   streamInDelta: (delta) ->
+    # array elements should be objects
+    # array elements should have ids
+    # path should be '.' or 'foo' or 'foo.bar' or 'foo[5]'
+    # each path section can only contain one set of []
+
   streamOutDelta: (delta) ->
 
   streamInPayload: (payload) ->
+    # array elements should be objects
+    # array elements should have ids
+
   streamOutPayload: (payload) ->
 
   # collector formats

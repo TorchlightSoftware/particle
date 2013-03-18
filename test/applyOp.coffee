@@ -5,6 +5,35 @@ _ = require 'lodash'
 logger = (args...) -> console.log args.map((a) -> if (typeof a) is 'string' then a else inspect a, null, null)...
 
 tests = [
+    description: 'path should navigate arrays by id'
+    pre:
+      users: [
+        id: 5
+        name: 'Bob'
+        todos: [
+          {id: 5, description: 'take out the trash'}
+          {id: 9, description: 'do the dishes'}
+        ]
+      ]
+    op:
+      root: 'users'
+      timestamp: new Date
+      oplist: [
+        operation: 'set'
+        id: 5
+        path: 'todos[5].description'
+        data: 'take over the world'
+      ]
+    post:
+      users: [
+        id: 5
+        name: 'Bob'
+        todos: [
+            {id: 5, description: 'take over the world'}
+            {id: 9, description: 'do the dishes'}
+        ]
+      ]
+  ,
     description: 'set should create a new record in an existing collection'
     pre: {users: []}
     op:
@@ -43,6 +72,19 @@ tests = [
         data: {name: 'Bob'}
       ]
     post: {users: [{id: 6}, {id: 'nine', face: 'nameless'}, {id: 5, name: 'Bob'}]}
+  ,
+    description: 'set should work with arrays'
+    pre: {users: [{id: 6}]}
+    op:
+      root: 'users'
+      timestamp: new Date
+      oplist: [
+        operation: 'set'
+        id: 6
+        path: '.'
+        data: {stuff: []}
+      ]
+    post: {users: [{id: 6, stuff: []}]}
   ,
     description: 'unset should remove a field'
     pre: {users: [{id: 5, name: 'Bob'}]}

@@ -33,6 +33,12 @@ module.exports = (dataRoot, {root, oplist}) =>
       [location..., target] = path.split '.'
       for part in location
 
+        arraySpec = part.match(/\[([0-9+])\]/)
+        if arraySpec
+          [spec, arrayIndex] = arraySpec
+          arrayIndex = parseInt arrayIndex
+          part = part.replace spec, ''
+
         # be forgiving and create non-existent nodes unless it's a removal op
         unless node[part]?
           if operation in removers
@@ -41,6 +47,9 @@ module.exports = (dataRoot, {root, oplist}) =>
             node[part] = {} # TODO: maybe do []/{} depending on manifest?
 
         node = node[part]
+        if arrayIndex
+          targetItem = _.find node, (item) -> item.id is arrayIndex
+          node = targetItem if targetItem
 
     # apply the appropriate change
     switch operation
