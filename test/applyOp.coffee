@@ -34,6 +34,56 @@ tests = [
         ]
       ]
   ,
+    description: 'path should create a new array element'
+    pre:
+      users: [
+        id: 5
+        name: 'Bob'
+        todos: [
+        ]
+      ]
+    op:
+      root: 'users'
+      timestamp: new Date
+      oplist: [
+        operation: 'set'
+        id: 5
+        path: 'todos[5].description'
+        data: 'take over the world'
+      ]
+    post:
+      users: [
+        id: 5
+        name: 'Bob'
+        todos: [
+          {id: 5, description: 'take over the world'}
+        ]
+      ]
+  ,
+    description: 'path should create a new array'
+    pre:
+      users: [
+        id: 5
+        name: 'Bob'
+      ]
+    op:
+      root: 'users'
+      timestamp: new Date
+      oplist: [
+        operation: 'set'
+        id: 5
+        path: 'todos[5].description'
+        data: 'take over the world'
+      ]
+    post:
+      users: [
+        id: 5
+        name: 'Bob'
+        todos: [
+          {id: 5, description: 'take over the world'}
+        ]
+      ]
+  ,
     description: 'set should create a new record in an existing collection'
     pre: {users: []}
     op:
