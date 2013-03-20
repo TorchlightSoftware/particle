@@ -1,3 +1,5 @@
+_ = require 'lodash'
+
 module.exports = util =
 
   getType: (obj) -> Object.prototype.toString.call(obj).slice 8, -1
@@ -20,8 +22,8 @@ module.exports = util =
       return false unless target[name]
     return true
 
-  box: (obj) ->
-    if util.getType(obj) is 'Array'
-      return obj
-    else
-      return [obj]
+  contains: (target, test) ->
+    _.isEqual target, test, (left, right) ->
+      if _.isPlainObject(left) and _.isPlainObject(right)
+        newLeft = _.pick left, _.keys right
+        return _.isEqual newLeft, right
