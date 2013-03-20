@@ -117,8 +117,10 @@ tests = [
       @initialRecord =
         email: 'graham@daventry.com'
         friends: [
+            _id: 5
             name: 'Bob'
           ,
+            _id: 6
             name: 'Sally'
         ]
 
@@ -132,14 +134,14 @@ tests = [
 
     # When I update a document in an array
     ready: (next) ->
-      @users.update {_id: new ObjectID(@initialRecord.id)}, {'$set': 'friends.0.name': 'Fred'}, next
+      @users.update {_id: new ObjectID(@initialRecord.id), 'friends._id': 5}, {'$set': 'friends.$.name': 'Fred'}, next
 
     listen:
       'Then the data should be updated':
         on: 'users'
         do: (data, event, next) ->
           if event.oplist[0].data is 'Fred'
-            data.users[0].friends[0].should.eql {name: 'Fred'}
+            data.users[0].friends[0].should.eql {_id: 5, name: 'Fred'}
             next()
   ,
 
