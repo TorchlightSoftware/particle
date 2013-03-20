@@ -323,6 +323,24 @@ tests = [
         data: -1
       ]
     post: {users: [{id: 5, friends: ['Bob']}]}
+  ,
+    description: 'pull should remove an element'
+    pre: {users: [{id: 5, friends: [
+      {id: 9, name: 'Jane'}
+      {id: 10, name: 'Bob'}
+    ]}]}
+    op:
+      root: 'users'
+      timestamp: new Date
+      oplist: [
+        operation: 'pull'
+        id: 5
+        path: 'friends'
+        data: {id: 9}
+      ]
+    post: {users: [{id: 5, friends: [
+      {id: 10, name: 'Bob'}
+    ]}]}
 ]
 
 describe 'applyOp', ->

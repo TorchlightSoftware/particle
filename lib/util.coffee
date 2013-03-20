@@ -4,7 +4,7 @@ module.exports = util =
 
   getType: (obj) -> Object.prototype.toString.call(obj).slice 8, -1
 
-  # compares an object's keys to an array, string or another object's keys
+  # check to see if an object contains one or more keys
   objInclude: (target, list) ->
     return false unless util.getType(target) is 'Object'
     keys = switch util.getType(list)
@@ -27,3 +27,9 @@ module.exports = util =
       if _.isPlainObject(left) and _.isPlainObject(right)
         newLeft = _.pick left, _.keys right
         return _.isEqual newLeft, right
+
+  indexContaining: (list, test) ->
+    for el, index in list
+      if util.contains el, test
+        return index
+    return null

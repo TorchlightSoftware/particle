@@ -6,6 +6,7 @@ mongoWatchPolicy = require '../sample/mongoWatchPolicy'
 {inspect} = require 'util'
 logger = (args...) -> console.log args.map((a) -> if (typeof a) is 'string' then a else inspect a, null, null)...
 accumulator = require 'accumulator'
+_ = require 'lodash'
 
 tests = [
     description: 'should emit events'
@@ -20,6 +21,8 @@ tests = [
 
       # When I insert a user
       @users.insert {email: 'graham@daventry.com'}, next
+
+    #onDebug: logger
 
     listen:
       'Then I should see a delta':
@@ -46,8 +49,8 @@ tests = [
 
           event.oplist.should.eql expected
           next()
-
   ,
+
     description: 'should work with sub documents'
 
     # Given I have a user record with a sub document
@@ -102,10 +105,85 @@ tests = [
       @collector.data.users[0].should.eql @initialRecord
 
       @users.update {_id: new ObjectID @initialRecord.id}, {'$push': friends: {name: 'Jim'}}, next
+  ,
+
+    description: 'should update a document in an array'
+    identity: {sessionId: 5}
+
+    #onDebug: logger
+
+    # Given a user with an array
+    pre: (next) ->
+      @initialRecord =
+        email: 'graham@daventry.com'
+        friends: [
+            name: 'Bob'
+          ,
+            name: 'Sally'
+        ]
+
+      @users.insert @initialRecord, (err) =>
+
+        # mongoose is modifying the arg I gave it to add an _id
+        @initialRecord.id = @initialRecord._id.toString()
+        delete @initialRecord._id
+
+        next err
+
+    # When I update a document in an array
+    ready: (next) ->
+      @users.update {_id: new ObjectID(@initialRecord.id)}, {'$set': 'friends.0.name': 'Fred'}, next
+
+    listen:
+      'Then the data should be updated':
+        on: 'users'
+        do: (data, event, next) ->
+          if event.oplist[0].data is 'Fred'
+            data.users[0].friends[0].should.eql {name: 'Fred'}
+            next()
+  ,
+
+    description: 'should pull a document from an array'
+    identity: {sessionId: 5}
+
+    #onDebug: logger
+
+    # Given a user with an array
+    pre: (next) ->
+      @initialRecord =
+        email: 'graham@daventry.com'
+        friends: [
+          {id: 9, name: 'Jane'}
+          {id: 10, name: 'Bob'}
+        ]
+
+      @users.insert @initialRecord, (err) =>
+
+        # mongoose is modifying the arg I gave it to add an _id
+        @initialRecord.id = @initialRecord._id.toString()
+        delete @initialRecord._id
+
+        next err
+
+    # When I update a document in an array
+    ready: (next) ->
+      @users.update {_id: new ObjectID(@initialRecord.id)}, {'$pull': 'friends': {id: 9}}, next
+
+    listen:
+      'Then the data should be updated':
+        on: 'users'
+        do: (data, event, next) ->
+          if event.oplist[0].operation is 'pull'
+            data.users[0].should.include
+              email: 'graham@daventry.com'
+              friends: [
+                {id: 10, name: 'Bob'}
+              ]
+            next()
 ]
 
 # create a test harness which turns the above test data into live tests
-describe 'Stream', ->
+describe 'Integration', ->
   before (done) ->
 
     # create a ref for modifying 'users'

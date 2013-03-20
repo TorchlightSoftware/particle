@@ -1,5 +1,6 @@
 _ = require 'lodash'
 removers = ['unset']
+{indexContaining} = require './util'
 
 module.exports = (dataRoot, {root, oplist}) =>
 
@@ -83,3 +84,6 @@ module.exports = (dataRoot, {root, oplist}) =>
           node[target].splice 0, 1
         else
           node[target].splice -1, 1
+      when 'pull'
+        index = indexContaining node[target], data
+        node[target].splice index, 1 if index?

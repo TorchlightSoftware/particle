@@ -31,6 +31,18 @@ tests = [
     test:
       id: 5
     out: false
+  ,
+    description: 'should not bust on string'
+    target:
+      name: 'Fred'
+    test: 'foo'
+    out: false
+  ,
+    description: 'should not bust on null'
+    target:
+      name: 'Fred'
+    test: null
+    out: false
 ]
 
 describe 'contains', ->
@@ -40,3 +52,29 @@ describe 'contains', ->
       it description, ->
         result = util.contains target, test
         result.should.eql out
+
+idcTests = [
+    description: 'should find a record by ID'
+    list: [
+      {id: 5, name: 'Bob'}
+    ]
+    test: {id: 5}
+    out: 0
+  ,
+    description: 'should find a record among peers'
+    list: [
+      {id: 5, name: 'Bob'}
+      {id: 6, name: 'Sally'}
+      {id: 7, name: 'Jenny'}
+    ]
+    test: {id: 6}
+    out: 1
+]
+
+describe 'indexContaining', ->
+  for test in idcTests
+    do (test) ->
+      {description, list, test, out} = test
+      it description, ->
+        result = util.indexContaining list, test
+        (result is out).should.eql true
