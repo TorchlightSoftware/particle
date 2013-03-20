@@ -1,5 +1,5 @@
 {EventEmitter} = require 'events'
-{objInclude, find, box} = require './util'
+{objInclude, find} = require './util'
 normalizePayload = require './normalizePayload'
 applyOp = require './applyOp'
 _ = require 'lodash'
