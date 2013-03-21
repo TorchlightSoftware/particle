@@ -9,7 +9,7 @@ class Collector extends EventEmitter
   # connect to server
   # {sessionId?}, {register, onDebug, onError}
   constructor: (options) ->
-    status = 'loading'
+    status = 'waiting'
     @data = {}
     @identity = options.identity or {}
     @debug = options.onDebug or ->
@@ -29,7 +29,7 @@ class Collector extends EventEmitter
       if err
         @error {context: 'Error: Stream - Could not initiate data transfer.', error: err}
       else
-        @debug 'Done loading data.'
+        @debug 'Registered with Stream.'
 
   receive: (name, event) ->
     @lastUpdated = new Date event.timestamp
