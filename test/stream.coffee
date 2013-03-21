@@ -82,13 +82,13 @@ tests = [
         list: true
     identity: {sessionId: 5}
 
-    # Given I insert a document
+    # Given I insert a document with fields outside the manifest
     pre: (done) ->
       @users.insert {email: 'graham@daventry.com', shouldNotAllow: 'gotcha'}, done
 
     listen:
 
-      'Given I receive a manifest':
+      'I should receive a manifest':
         on: 'manifest'
         do: (event, next) ->
           event.should.include {
@@ -99,7 +99,7 @@ tests = [
           }
           next()
 
-      'And I receive a payload':
+      'The payload should not include items outside the manifest':
         on: 'payload'
         do: (event, next) ->
           should.not.exist event.data[0].shouldNotAllow
@@ -107,7 +107,7 @@ tests = [
           # When I update a document
           @users.update {email: 'graham@daventry.com'}, {email: 'foo@bar.com', something: 'yes'}, next
 
-      'Then I should receive a delta':
+      'And the delta should not include items outside the manifest':
         on: 'delta'
         do: (event, next) ->
           {root, oplist} = event
