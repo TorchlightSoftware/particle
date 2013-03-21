@@ -2,6 +2,10 @@
 
 This is a library for distributed state synchronization.  Clients can register with a server, and their local data models will be kept up to data as the data on the server changes.  To begin with we are focused on Mongo as the data source, but in the future Redis and other data sources should be supported.
 
+Currently the client side data model is read only.  This is not enforced, but if you change it your data will now be out of sync with the server.  Instead you should use an out of band method such as RPC or REST to initiate changes on the server, and let them trickle back down.
+
+In the future, it is possible we will support a more direct strategy for updating the data model.  This is a complex problem to solve because you need to handle conflict resolution on shared data.  Ultimately the server must have final say in what operations are allowed.
+
 ## Install
 
 ```bash
@@ -12,7 +16,7 @@ npm install particle
 
 ```coffee-script
 particle = require 'particle'
-client = new particle.Client
+collector = new particle.Collector
 
   identity:
     sessionId: 'foo'
@@ -22,7 +26,7 @@ client = new particle.Client
     console.log {data, event}
 ```
 
-## Beam (Server)
+## Stream (Server)
 
 ```coffee-script
 particle = require 'particle'
@@ -30,7 +34,7 @@ MongoWatch = require 'mongo-watch'
 watcher = new MongoWatch {format: 'normal'}
 users = # a collection from mongo driver or mongoose
 
-server = new particle.Server
+stream = new particle.Stream
   #onDebug: console.log
 
   identityLookup: (identity, done) ->
@@ -56,15 +60,15 @@ server = new particle.Server
     watcher.stopAll()
 ```
 
-## Configuring Your Particle Beam
+## Configuring Your Particle Stream
 
-When you create a Beam, which is the server component to Particle, you pass it a configuration.  The Beam and its configuration reside server side for security purposes, so you never send out any data that you don't want the user to have access to.
+When you create a Stream, which is the server component to Particle, you pass it a configuration.  The Stream and its configuration reside server side for security purposes, so you never send out any data that you don't want the user to have access to.
 
 The fields below are required unless you see a * after the name.
 
 ### Data Sources
 
-Each data source corresponds to a root property on the client side data model.  The data source configuration controls where data will come from and how it will be filtered.
+Each data source corresponds to a root property on the client side data model (collector.data).  The data source configuration controls where data will come from and how it will be filtered.
 
 * Manifest
 
@@ -78,7 +82,7 @@ This function is responsible for retrieving initial data when a new client regis
 
 * Delta
 
-This function is passed the Identity of the client, and a receiver function.  It is responsible for wiring up some kind of event source which will be forwarded by the Beam to any registered Collectors.
+This function is passed the Identity of the Collector, and a receiver function.  It is responsible for wiring up some kind of event source which will be forwarded by the Stream to any registered Collectors.
 
 I wrote a library for listening to the mongo oplog which can be used for this purpose.  You can find it [here](https://github.com/torchlightsoftware/mongo-watch).  You want to use the 'normal' format to get a message format compatible with Particle.  Note that this will not work for shared DB hosting solutions.  If you are interested in getting something working for that sort of platform I have some ideas... please contact me.
 
@@ -88,13 +92,13 @@ This is the first step taken whenever a new client registers.  You will be passe
 
 ### onDebug*
 
-The 'onDebug' value can be set to a logging function, for instance console.log.  Whenever Beam receives data from a data source, or sends data to a Collector, your function will be notified.  Other important events are sent as well.
+The 'onDebug' value can be set to a logging function, for instance console.log.  Whenever Stream receives data from a data source, or sends data to a Collector, your function will be notified.  Other important events are sent as well.
 
 This is really useful if you are trying to troubleshoot a configuration to find out why data is not being transmitted.
 
 ### disconnect*
 
-Each Particle Beam instance exposes a disconnect method which can be used to shut it down.  In addition to its internal behavior, you can specify your own behavior, such as shutting down any watchers you established.
+Each Particle Stream instance exposes a disconnect method which can be used to shut it down.  In addition to its internal behavior, you can specify your own behavior, such as shutting down any watchers you established.
 
 ## Designing Your Data Model
 
@@ -104,7 +108,7 @@ For instance, if a particular Data Source represents the 'current user', you can
 
 ## Collector Configuration
 
-The collector's configuration is pretty minimal.  It doesn't need to know about what data it will be managing, it just needs your credentials and the location of the Beam it's connecting to.  Here are the fields you can use:
+The collector's configuration is pretty minimal.  It doesn't need to know about what data it will be managing, it just needs your credentials and the location of the Stream it's connecting to.  Here are the fields you can use:
 
 ### Identity
 
@@ -112,18 +116,18 @@ A hash object containing any data you wish to use for authentication and access 
 
 ### Register*
 
-This is a low level function which should not normally be used.  See the debugging section below for details.  In its absence the Collector will try to connect to its Beam using websockets (which is usually what you want).
+This is a low level function which should not normally be used.  See the debugging section below for details.  In its absence the Collector will try to connect to its Stream using websockets (which is usually what you want).
 
 ## The Particle Lifecycle
 
-When a Beam is created, it stores the configuration and waits for clients to register.  For each client that registers it does the following:
+When a Stream is created, it stores the configuration and waits for clients to register.  For each client that registers it does the following:
 
 1. Verifies the client's identity
 2. Sends a manifest
 3. Sends payloads for all data sources
 4. Wires up listeners for deltas
 
-When a Collector is created, it immediately tries to register with a Beam based on its configuration.  It sends the Beam its identity and waits for a success/failure.  The operation succeeds if the Identity lookup is successful (or none is defined), and then the client waits for its initial data.
+When a Collector is created, it immediately tries to register with a Stream based on its configuration.  It sends the Stream its identity and waits for a success/failure.  The operation succeeds if the Identity lookup is successful (or none is defined), and then the client waits for its initial data.
 
 The Collector starts out with a 'status' property set to 'waiting'.  It expects to receive:
 
@@ -138,7 +142,7 @@ The function you provide to onData will receive (data, event).  Data is the enti
 
 ## The Particle Message Format
 
-Three types of messages are passed between the Particle Beam and Collector:
+Three types of messages are passed between the Particle Stream and Collector:
 
 * Manifest
 * Payload
@@ -155,11 +159,11 @@ I tried to make the interface a balance of clean and robust.  If you run into tr
 
 ### onDebug
 
-This is supported on both Collector and Beam instances.  When you pass a logging function such as console.log, you will be notified of relevant events in the Particle lifecycle.  Turning this on for most production and even development environments is not recommended, as the data volume will be huge.
+This is supported on both Collector and Stream instances.  When you pass a logging function such as console.log, you will be notified of relevant events in the Particle lifecycle.  Turning this on for most production and even development environments is not recommended, as the data volume will be huge.
 
 ### Register
 
-This function is present as a configuration option on the Collector, and as a fully implemented function on the Beam.
+This function is present as a configuration option on the Collector, and as a fully implemented function on the Stream.
 
 We'll talk about the Collector first.  You could add a custom function here for the purpose of:
 
@@ -169,7 +173,7 @@ We'll talk about the Collector first.  You could add a custom function here for 
 
 The last case is particularly useful - if you mock out the client side you can allow front end developers to continue work unimpeded by the back end implementation.
 
-The Beam's implementation of this function accepts the following arguments:
+The Stream's implementation of this function accepts the following arguments:
 
 * identity
 * a receiver method (messageName, event) - call this whenever you want to send the client data
@@ -190,7 +194,6 @@ I think this is a good starting point for understanding how different data-acqui
 Another good resource on the subject is the book [Event Processing: Designing IT Systems for Agile Companies](http://www.amazon.com/Event-Processing-Designing-Systems-Companies/dp/0071633502).
 
 Here's an [interview with the author](http://www.youtube.com/watch?v=b6Lb0FRojXM).
-
 
 ## LICENSE
 
