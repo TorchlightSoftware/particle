@@ -1,4 +1,6 @@
 _ = require 'lodash'
+filterPayload = require './filterPayload'
+filterDelta = require './filterDelta'
 
 class Stream
   listeners: []
@@ -36,20 +38,22 @@ class Stream
 
         # close over variables so they stay set in the callbacks
         do (name, source) =>
-          {delta, payload} = source
+          {delta, payload, manifest} = source
 
           # respond with initial data {data, timestamp}
           payload identity, (err, initialData) =>
             if err
               @error {identity: identity, context: 'Error retrieving payload.', error: err}
             else
-              event = _.extend {}, initialData, {root: name}
+              filtered = filterPayload @manifest, initialData
+              event = _.extend {}, filtered, {root: name}
               @debug 'Sent payload.', {event, err}
               receive 'payload', event
 
           # respond with deltas over time
           delta identity, (change) =>
-            event = _.extend {}, change, {root: name}
+            filtered = filterDelta @manifest, change
+            event = _.extend {}, filtered, {root: name}
             @debug 'Sent delta.', {event}
             receive 'delta', event
 

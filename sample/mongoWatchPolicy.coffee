@@ -3,7 +3,7 @@ watcher = new MongoWatch {format: 'normal'}
 {inspect} = require 'util'
 logger = (args...) -> console.log args.map((a) -> if (typeof a) is 'string' then a else inspect a, null, null)...
 
-module.exports = (collection) ->
+module.exports = (collection, manifest) ->
 
   #onDebug: logger
 
@@ -13,9 +13,12 @@ module.exports = (collection) ->
   dataSources:
 
     users:
-      manifest: # limit what fields should be allowed
+
+      # limit what fields should be allowed
+      manifest: manifest or {
         email: true
         todo: {list: true}
+      }
 
       payload: # get initial data for this collection
         (identity, done) ->

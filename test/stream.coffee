@@ -74,6 +74,50 @@ tests = [
             data: {name: 'Jim'}
           }
             next()
+  ,
+    description: 'should not allow payload for items not in manifest'
+    manifest:
+      email: true
+      todo:
+        list: true
+    identity: {sessionId: 5}
+
+    # Given I insert a document
+    pre: (done) ->
+      @users.insert {email: 'graham@daventry.com', shouldNotAllow: 'gotcha'}, done
+
+    listen:
+
+      'Given I receive a manifest':
+        on: 'manifest'
+        do: (event, next) ->
+          event.should.include {
+            users:
+              email: true
+              todo:
+                list: true
+          }
+          next()
+
+      'And I receive a payload':
+        on: 'payload'
+        do: (event, next) ->
+          should.not.exist event.data[0].shouldNotAllow
+
+          # When I update a document
+          @users.update {email: 'graham@daventry.com'}, {email: 'foo@bar.com', something: 'yes'}, next
+
+      'Then I should receive a delta':
+        on: 'delta'
+        do: (event, next) ->
+          {root, oplist} = event
+          [{data, operation}] = oplist
+
+          root.should.eql 'users'
+          operation.should.eql 'set'
+          should.not.exist data.something
+          next()
+  ,
 ]
 
 # create a test harness which turns the above test data into live tests
@@ -94,7 +138,7 @@ describe 'Stream', ->
 
   for test in tests
     do (test) ->
-      {identity, description, listen, pre} = test
+      {identity, manifest, description, listen, pre} = test
       pre or= (next) -> next()
 
       it description, (done) ->
@@ -102,7 +146,7 @@ describe 'Stream', ->
         pre.bind(@) (err) =>
           should.not.exist err, 'failed pre-condition'
 
-          @stream = new Stream mongoWatchPolicy @users
+          @stream = new Stream mongoWatchPolicy @users, manifest
 
           receiver = (name, event) =>
             for message, listener of listen when listener.on is name
