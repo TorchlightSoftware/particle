@@ -72,13 +72,13 @@ Each data source corresponds to a root property on the client side data model (c
 
 * Manifest
 
-The manifest is a data structure which controls what fields get pushed out to a client.  It treats arrays and objects the same, and does not care about data types.  It will be applied to any data returned by the Payload or Delta functions.  It is comprised of nested objects and boolean values.  Data is not represented by default, so only the value 'true' has any meaning.  You can use 'false' for explicit documentation if you would like.
+The manifest is a data structure which controls what fields get pushed out to a Collector.  It treats arrays and objects the same, and does not care about data types.  It will be applied to any data returned by the Payload or Delta functions.  It is comprised of nested objects and boolean values.  Data is not represented by default, so only the value 'true' has any meaning.  You can use 'false' for explicit documentation if you would like.
 
 You can assign 'true' at any point in the data structure.  For instance, if you put 'true' at the root then no data will be filtered.
 
 * Payload
 
-This function is responsible for retrieving initial data when a new client registers.  It is passed the Identity associated with this client, and a callback function (err, data) for returning the data.  You can use the Identity to limit the fields returned.  The data returned by a Mongo query is suitable for this.  Essentially it needs to be a collection of documents, where each document is comprised of a root object and nested objects, arrays, and data values.
+This function is responsible for retrieving initial data when a new Collector registers.  It is passed the Identity associated with this Collector, and a callback function (err, data) for returning the data.  You can use the Identity to limit the fields returned.  The data returned by a Mongo query is suitable for this.  Essentially it needs to be a collection of documents, where each document is comprised of a root object and nested objects, arrays, and data values.
 
 * Delta
 
@@ -88,7 +88,7 @@ I wrote a library for listening to the mongo oplog which can be used for this pu
 
 ### Identity Lookup*
 
-This is the first step taken whenever a new client registers.  You will be passed the identity that the client is claiming, and you have the opportunity to look up additional data and associate it with this client, or you can return an error in which case the registration will fail and the client will be notified.  Any additional data that you look up will be stored server side and will not be passed back to the client.  However, it will be passed to the Payload and Delta functions, so you can use it in filtering the data that a client receives.
+This is the first step taken whenever a new Collector registers.  You will be passed the identity that the Collector is claiming, and you have the opportunity to look up additional data and associate it with this Collector, or you can return an error in which case the registration will fail and the Collector will be notified.  Any additional data that you look up will be stored server side and will not be passed back to the Collector.  However, it will be passed to the Payload and Delta functions, so you can use it in filtering the data that a Collector receives.
 
 ### onDebug*
 
@@ -102,7 +102,7 @@ Each Particle Stream instance exposes a disconnect method which can be used to s
 
 ## Designing Your Data Model
 
-By combining field limiting from the manifest, and the record limiting ability of the payload and delta functions, you can achieve precise control over what data a client has access to.
+By combining field limiting from the manifest, and the record limiting ability of the payload and delta functions, you can achieve precise control over what data a Collector has access to.
 
 For instance, if a particular Data Source represents the 'current user', you can pull their userID from the Identity argument and query for only the record that matches.  Another Data Source might be coming from the same database collection, but retrieve ALL the users' records with a more restrictive Manifest.
 
@@ -120,14 +120,14 @@ This is a low level function which should not normally be used.  See the debuggi
 
 ## The Particle Lifecycle
 
-When a Stream is created, it stores the configuration and waits for clients to register.  For each client that registers it does the following:
+When a Stream is created, it stores the configuration and waits for Collectors to register.  For each Collector that registers it does the following:
 
-1. Verifies the client's identity
+1. Verifies the Collector's identity
 2. Sends a manifest
 3. Sends payloads for all data sources
 4. Wires up listeners for deltas
 
-When a Collector is created, it immediately tries to register with a Stream based on its configuration.  It sends the Stream its identity and waits for a success/failure.  The operation succeeds if the Identity lookup is successful (or none is defined), and then the client waits for its initial data.
+When a Collector is created, it immediately tries to register with a Stream based on its configuration.  It sends the Stream its identity and waits for a success/failure.  The operation succeeds if the Identity lookup is successful (or none is defined), and then the Collector waits for its initial data.
 
 The Collector starts out with a 'status' property set to 'waiting'.  It expects to receive:
 
@@ -136,7 +136,7 @@ The Collector starts out with a 'status' property set to 'waiting'.  It expects 
 
 Once it has received the manifest and data for all sources, its status will change to 'ready'.  In addition the collector has a function called 'ready' which takes a callback and will either call it immediately if the status is 'ready', or will call it once the status changes to 'ready'.  As of this writing, there are no other statuses defined.
 
-The onData property of the Collector configuration is used to listen to changes.  Why is it provided up front and not dynamically addible like an EventEmitter?  Well, right now the client is performing a connecting as soon as it is initialized, and you don't want to miss any events, so you need to provide your listener up front.  This is a very early draft of the system, and I will probably be changing to a manual 'register' call so that you can wire up your listeners in a nicer way.
+The onData property of the Collector configuration is used to listen to changes.  Why is it provided up front and not dynamically addible like an EventEmitter?  Well, right now the Collector is performing a registration as soon as it is initialized, and you don't want to miss any events, so you need to provide your listener up front.  This is a very early draft of the system, and I will probably be changing to a manual 'register' call so that you can wire up your listeners in a nicer way.
 
 The function you provide to onData will receive (data, event).  Data is the entire data root, and event is a description of the change which occurred.  The event format follows the specification for a Delta (see Message Format in next section).  All events will look like Deltas, even inserts and the data retrieved by the payloads.
 
@@ -169,17 +169,17 @@ We'll talk about the Collector first.  You could add a custom function here for 
 
 * debugging the Collector
 * connecting to a custom event source
-* mocking out the client model
+* mocking out the data model
 
-The last case is particularly useful - if you mock out the client side you can allow front end developers to continue work unimpeded by the back end implementation.
+The last case is particularly useful - if you mock out the client side data model you can allow front end developers to continue work unimpeded by the back end implementation.
 
 The Stream's implementation of this function accepts the following arguments:
 
 * identity
-* a receiver method (messageName, event) - call this whenever you want to send the client data
+* a receiver method (messageName, event) - call this whenever you want to send the Collector data
 * a callback (err) - to be called when registration has completed (or failed)
 
-It is responsible for establishing a communication channel with a particular client.  See Particle Message Format above.
+It is responsible for establishing a communication channel with a particular Collector.  See Particle Message Format above.  You can call this function manually in order to mimic a Collector registration.
 
 ## Credit/Inspiration
 
