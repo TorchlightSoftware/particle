@@ -1,0 +1,14 @@
+{
+  "name": "particle",
+  "repo": "TorchlightSoftware/particle",
+  "description": "A library for distributed state synchronization.",
+  "version": "0.0.1",
+  "keywords": ["client model", "model", "data", "distributed", "state", "synchronization"],
+  "dependencies": {"wearefractal/protosock": "*"},
+  "development": {},
+  "license": "MIT",
+  "main": "dist/particle.js",
+  "scripts": [
+    "dist/particle.js"
+  ]
+}

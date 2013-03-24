@@ -1,6 +1,6 @@
 {
    "name":"particle",
-   "description":"",
+   "description":"A library for distributed state synchronization.",
    "version":"0.0.1",
    "homepage":"http://github.com/TorchlightSoftware/particle",
    "repository":"git://github.com/TorchlightSoftware/particle.git",

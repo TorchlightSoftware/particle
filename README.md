@@ -10,6 +10,8 @@ In the future, it is possible we will support a more direct strategy for updatin
 
 ```bash
 npm install particle
+
+component install TorchlightSoftware/particle
 ```
 
 ## Collector (Client)
