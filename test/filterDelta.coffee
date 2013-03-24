@@ -19,6 +19,18 @@ updateTodo =
   path: 'todos.0.description'
   data: 'take over the world'
 
+updateDocument =
+  operation: 'set'
+  id: 5
+  path: '.'
+  data: {email: 'graham@daventry.com'}
+
+updateInvalidDocument =
+  operation: 'set'
+  id: 5
+  path: '.'
+  data: {password: 'secret'}
+
 tests = [
     description: 'should pass all items'
     pre: [updatePassword, updateEmail, updateTodo]
@@ -43,9 +55,21 @@ tests = [
       todos:
         description: true
     post: [updateTodo]
+  ,
+    description: 'should handle document update'
+    pre: [updateDocument]
+    manifest:
+      email: true
+    post: [updateDocument]
+  ,
+    description: 'should remove invalid fields from document update'
+    pre: [updateInvalidDocument]
+    manifest:
+      email: true
+    post: []
 ]
 
-describe 'filterPayload', ->
+describe 'filterDelta', ->
   for test in tests
     do (test) ->
       {description, pre, manifest, post} = test

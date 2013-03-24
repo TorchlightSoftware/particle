@@ -3,7 +3,6 @@ _ = require 'lodash'
 
 module.exports = walk = (manifest, payload) ->
 
-  #console.log {manifest, payload}
   return payload if manifest is true
 
   switch getType(payload)

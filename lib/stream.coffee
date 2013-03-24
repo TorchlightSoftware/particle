@@ -1,4 +1,5 @@
 _ = require 'lodash'
+{empty} = require './util'
 filterPayload = require './filterPayload'
 filterDelta = require './filterDelta'
 
@@ -45,17 +46,18 @@ class Stream
             if err
               @error {identity: identity, context: 'Error retrieving payload.', error: err}
             else
-              filtered = filterPayload @manifest, initialData
-              event = _.extend {}, filtered, {root: name}
+              filtered = filterPayload manifest, initialData.data
+              event = _.extend {}, initialData, {root: name, data: filtered}
               @debug 'Sent payload.', {event, err}
               receive 'payload', event
 
           # respond with deltas over time
           delta identity, (change) =>
-            filtered = filterDelta @manifest, change
-            event = _.extend {}, filtered, {root: name}
-            @debug 'Sent delta.', {event}
-            receive 'delta', event
+            filtered = filterDelta manifest, change.oplist
+            unless empty filtered
+              event = _.extend {}, change, {root: name, oplist: filtered}
+              @debug 'Sent delta.', {event}
+              receive 'delta', event
 
       done()
 

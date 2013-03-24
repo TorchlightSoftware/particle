@@ -3,8 +3,7 @@ should = require 'should'
 mongoWatchPolicy = require '../sample/mongoWatchPolicy'
 {Server, Db, ObjectID} = require 'mongodb'
 {getType} = require '../lib/util'
-{inspect} = require 'util'
-logger = (args...) -> console.log args.map((a) -> if (typeof a) is 'string' then a else inspect a, null, null)...
+logger = require './helpers/logger'
 accumulator = require 'accumulator'
 _ = require 'lodash'
 

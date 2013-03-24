@@ -15,10 +15,7 @@ module.exports = (collection, manifest) ->
     users:
 
       # limit what fields should be allowed
-      manifest: manifest or {
-        email: true
-        todo: {list: true}
-      }
+      manifest: manifest or true
 
       payload: # get initial data for this collection
         (identity, done) ->

@@ -22,6 +22,16 @@ module.exports = util =
       return false unless target[name]
     return true
 
+  empty: (obj) ->
+    return true unless obj?
+    switch util.getType(obj)
+      when 'Object'
+        return Object.keys(obj).length is 0
+      when 'Array', 'String'
+        return obj.length is 0
+      else
+        return false
+
   contains: (target, test) ->
     _.isEqual target, test, (left, right) ->
       if _.isPlainObject(left) and _.isPlainObject(right)

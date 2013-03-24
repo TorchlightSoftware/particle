@@ -3,14 +3,21 @@ should = require 'should'
 mongoWatchPolicy = require '../sample/mongoWatchPolicy'
 {Server, Db, ObjectID} = require 'mongodb'
 _ = require 'lodash'
+logger = require './helpers/logger'
 
 tests = [
     description: 'insert should emit an event'
     identity: {sessionId: 5}
 
+    # Given I set a manifest
+    manifest:
+      email: true
+      todo:
+        list: true
+
     listen:
 
-      'Given I receive a manifest':
+      'Then I should receive a manifest':
         on: 'manifest'
         do: (event, next) ->
           event.should.include {
@@ -21,7 +28,7 @@ tests = [
           }
           next()
 
-      'And I receive a payload':
+      'And a payload':
         on: 'payload'
         do: (event, next) ->
           event.should.include {
@@ -32,7 +39,7 @@ tests = [
           # When I insert a document
           @users.insert {email: 'graham@daventry.com'}, next
 
-      'Then I should receive a delta':
+      'And a delta':
         on: 'delta'
         do: (event, next) ->
           {root, oplist} = event
