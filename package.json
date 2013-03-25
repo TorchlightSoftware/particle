@@ -14,7 +14,7 @@
       "protosock":"*"
    },
    "devDependencies":{
-      "accumulator":"*",
+      "qi":"*",
       "mongodb":"*",
       "mongo-watch":"*",
       "mocha":"*",

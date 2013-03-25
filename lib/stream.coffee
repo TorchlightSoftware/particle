@@ -2,6 +2,7 @@ _ = require 'lodash'
 {empty} = require './util'
 filterPayload = require './filterPayload'
 filterDelta = require './filterDelta'
+Server = require './server'
 
 class Stream
   listeners: []
@@ -16,6 +17,10 @@ class Stream
     @debug = policy.onDebug or ->
 
     @error = @policy.onError or console.error
+
+  init: (server, options) ->
+    @server = Server server, options
+    @server.init @register.bind(@)
 
   register: (identity, receive, done) ->
 
@@ -42,6 +47,7 @@ class Stream
           {delta, payload, manifest} = source
 
           # respond with initial data {data, timestamp}
+          @debug 'Requesting payload.', {identity}
           payload identity, (err, initialData) =>
             if err
               @error {identity: identity, context: 'Error retrieving payload.', error: err}
@@ -62,6 +68,7 @@ class Stream
       done()
 
   disconnect: ->
+    @server.disconnect() if @server
     @policy.disconnect()
 
 module.exports = Stream

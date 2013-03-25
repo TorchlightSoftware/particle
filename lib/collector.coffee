@@ -1,6 +1,7 @@
 {EventEmitter} = require 'events'
 {objInclude, find} = require './util'
 normalizePayload = require './normalizePayload'
+Client = require './client'
 applyOp = require './applyOp'
 _ = require 'lodash'
 
@@ -12,10 +13,14 @@ class Collector extends EventEmitter
     status = 'waiting'
     @data = {}
     @identity = options.identity or {}
+    @network = options.network or {}
     @debug = options.onDebug or ->
     @error = options.onError or console.error
-    throw new Error 'Register argument is required.' unless options.register
-    register = options.register # or (identity, receiver, err) -> socket connection
+
+    # on register, call user provided register, or connect via websockets
+    @onRegister = options.onRegister or (identity, receiver, err) =>
+      @client = Client @network
+      @client.register identity, receiver, err
 
     @on 'ready', =>
       @debug 'ready!'
@@ -25,7 +30,10 @@ class Collector extends EventEmitter
       @debug 'Sending new data notification!'
       options.onData args... if options.onData
 
-    register @identity, @receive.bind(@), (err) =>
+  register: (done) ->
+    done or= ->
+    @onRegister @identity, @receive.bind(@), (err) =>
+      done err
       if err
         @error {context: 'Error: Stream - Could not initiate data transfer.', error: err}
       else

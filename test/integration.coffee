@@ -4,8 +4,11 @@ mongoWatchPolicy = require '../sample/mongoWatchPolicy'
 {Server, Db, ObjectID} = require 'mongodb'
 {getType} = require '../lib/util'
 logger = require './helpers/logger'
-accumulator = require 'accumulator'
+qi = require 'qi'
 _ = require 'lodash'
+http = require 'http'
+
+randomPort = -> Math.floor(Math.random() * 1000) + 8000
 
 tests = [
     description: 'should emit events'
@@ -184,54 +187,78 @@ tests = [
 ]
 
 # create a test harness which turns the above test data into live tests
-describe 'Integration', ->
-  before (done) ->
+for transport in ['process', 'websocket']
+  do (transport) ->
+    describe "Integration [#{transport}]", ->
+      before (done) ->
+        cb = qi.focus done
+        finished = cb()
 
-    # create a ref for modifying 'users'
-    client = new Db 'test', new Server('localhost', 27017), {w: 1}
-    client.open (err) =>
-      return done err if err
+        if transport is 'websocket'
+          @testPort = randomPort()
+          @server = http.createServer().listen @testPort, cb()
 
-      client.collection 'users', (err, @users) =>
-        done err
+        # create a ref for modifying 'users'
+        client = new Db 'test', new Server('localhost', 27017), {w: 1}
+        client.open (err) =>
+          return done err if err
 
-  afterEach ->
-    @stream.disconnect() if @stream
-    @users.remove {}, ->
+          client.collection 'users', (err, @users) =>
+            finished err
 
-  for test in tests
-    do (test) ->
-      {identity, description, pre, listen, onDebug, ready} = test
+      afterEach ->
+        @stream.disconnect() if @stream
+        @users.remove {}, ->
 
-      defaultFn = (next) -> next()
-      pre or= defaultFn
-      ready or= defaultFn
+      after (done) ->
+        if (transport is 'websocket') and @server?
+          @server.close done
+        else
+          done()
 
-      it description, (done) ->
-        getCb = accumulator done
-        readyCb = getCb()
+      for test in tests
+        do (test) ->
+          {identity, description, pre, listen, onDebug, ready} = test
 
-        handlers = for name, listener of listen
-          data =
-            ds: name
-            on: listener.on
-            do: listener.do
-            cb: getCb()
+          defaultFn = (next) -> next()
+          pre or= defaultFn
+          ready or= defaultFn
 
-        pre.call @, (err) =>
-          should.not.exist err, 'failed pre-condition'
+          it description, (done) ->
+            getCb = qi.focus done
+            readyCb = getCb()
 
-          @stream = new Stream mongoWatchPolicy @users
+            handlers = for name, listener of listen
+              data =
+                ds: name
+                on: listener.on
+                do: listener.do
+                cb: getCb()
 
-          @collector = new Collector
-            identity: identity
-            onDebug: onDebug
-            register: @stream.register.bind @stream
+            pre.call @, (err) =>
+              should.not.exist err, 'failed pre-condition'
 
-            onData: (data, event) =>
-              for handler in handlers when event.root is handler.on
-                handler.do.call @, data, event, (err) ->
-                  should.not.exist err, handler.ds
-                  handler.cb err
+              @stream = new Stream mongoWatchPolicy @users
+              if transport is 'websocket'
+                @stream.init @server
 
-          @collector.ready ready.bind @, readyCb
+              collectorOptions =
+                identity: identity
+                onDebug: onDebug
+
+                onData: (data, event) =>
+                  for handler in handlers when event.root is handler.on
+                    handler.do.call @, data, event, (err) ->
+                      should.not.exist err, handler.ds
+                      handler.cb err
+
+              if transport is 'process'
+                collectorOptions.onRegister = @stream.register.bind @stream
+              else if transport is 'websocket'
+                collectorOptions.network = {port: @testPort}
+
+              @collector = new Collector collectorOptions
+              @collector.register (err) ->
+                logger err if err
+
+              @collector.ready ready.bind @, readyCb

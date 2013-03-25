@@ -1,7 +1,7 @@
 MongoWatch = require 'mongo-watch'
 watcher = new MongoWatch {format: 'normal'}
 {inspect} = require 'util'
-logger = (args...) -> console.log args.map((a) -> if (typeof a) is 'string' then a else inspect a, null, null)...
+logger = require '../test/helpers/logger'
 
 module.exports = (collection, manifest) ->
 

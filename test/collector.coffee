@@ -13,11 +13,13 @@ describe 'Collector', ->
     @collector = new Collector
       identity:
         sessionId: 'foo'
-      register: mockServer()
+      onRegister: mockServer()
       onData: (data, event) ->
         should.exist event, 'expected event'
         (getType event.oplist).should.eql 'Array'
         event.oplist.should.have.length 1
+
+    @collector.register()
 
     # And it should send
     @collector.ready =>
@@ -32,7 +34,7 @@ describe 'Collector', ->
         sessionId: 'foo'
 
       # When I register a new client
-      register: mockServer [
+      onRegister: mockServer [
           operation: 'set'
           id: 5
           path: 'address.state'
@@ -55,3 +57,5 @@ describe 'Collector', ->
 
         for op in event.oplist
           done() if _.isEqual op, expected
+
+    @collector.register()

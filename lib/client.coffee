@@ -14,6 +14,7 @@ client =
         @receive msg.name, msg.event
 
   error: (socket, err) ->
+    console.log {err}
 
   register: (identity, receive, finish) ->
     @ssocket.write
@@ -23,5 +24,4 @@ client =
     @onRegistered = finish
     @receive = receive
 
-module.exports = (options) ->
-  createClientWrapper client
+module.exports = Client = createClientWrapper client
