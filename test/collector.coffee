@@ -14,10 +14,11 @@ describe 'Collector', ->
       identity:
         sessionId: 'foo'
       onRegister: mockServer()
-      onData: (data, event) ->
-        should.exist event, 'expected event'
-        (getType event.oplist).should.eql 'Array'
-        event.oplist.should.have.length 1
+
+    @collector.on 'data', (data, event) ->
+      should.exist event, 'expected event'
+      (getType event.oplist).should.eql 'Array'
+      event.oplist.should.have.length 1
 
     @collector.register()
 
@@ -41,21 +42,21 @@ describe 'Collector', ->
           data: 'Lake Maylie'
         ]
 
-      # I should recieve a delta event
-      onData: (data, event) =>
-        should.exist data
-        should.exist event
-        should.exist event.root, 'expected root'
+    # I should recieve a delta event
+    @collector.on 'data', (data, event) =>
+      should.exist data
+      should.exist event
+      should.exist event.root, 'expected root'
 
-        event.root.should.eql 'users'
+      event.root.should.eql 'users'
 
-        expected =
-          operation: 'set'
-          id: 5
-          path: 'address.state'
-          data: 'Lake Maylie'
+      expected =
+        operation: 'set'
+        id: 5
+        path: 'address.state'
+        data: 'Lake Maylie'
 
-        for op in event.oplist
-          done() if _.isEqual op, expected
+      for op in event.oplist
+        done() if _.isEqual op, expected
 
     @collector.register()

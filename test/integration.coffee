@@ -255,7 +255,7 @@ for transport in ['process', 'websocket']
               if transport is 'process'
                 collectorOptions.onRegister = @stream.register.bind @stream
               else if transport is 'websocket'
-                collectorOptions.network = {port: @testPort}
+                collectorOptions.network = {port: @testPort, host: 'localhost'}
 
               @collector = new Collector collectorOptions
               @collector.register (err) ->
