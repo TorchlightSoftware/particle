@@ -68,6 +68,7 @@ class Collector extends EventEmitter
 
   checkReady: ->
     checkManifest = (data, manifest) ->
+      return false unless manifest?
       for name of manifest when name isnt 'timestamp'
         return false unless data[name]
       return true
