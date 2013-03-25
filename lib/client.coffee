@@ -8,6 +8,9 @@ client =
 
   connect: (socket) ->
     @status = 'ready'
+
+    # This is a work around for not having an EventEmitter.
+    # I could add one in but not sure if it's worth it.
     for q in queued
       q()
     queued = []
