@@ -1,6 +1,6 @@
 # Particle
 
-This is a library for distributed state synchronization.  Clients can register with a server, and their local data models will be kept up to data as the data on the server changes.  To begin with we are focused on Mongo as the data source, but in the future Redis and other data sources should be supported.
+This is a library for distributed state synchronization.  Clients can register with a server, and their local data models will be kept up to date as the data on the server changes.  To begin with we are focused on Mongo as the data source, but in the future Redis and other data sources should be supported.
 
 Currently the client side data model is read only.  This is not enforced, but if you change it your data will now be out of sync with the server.  Instead you should use an out of band method such as RPC or REST to initiate changes on the server, and let them trickle back down.
 
