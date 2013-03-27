@@ -26,6 +26,10 @@ collector = new particle.Collector
   # I should recieve a delta event
   onData: (data, event) =>
     console.log {data, event}
+
+collector.on 'data', (data, event) ->
+
+collector.register (err) ->
 ```
 
 ## Stream (Server)
@@ -138,9 +142,7 @@ The Collector starts out with a 'status' property set to 'waiting'.  It expects 
 
 Once it has received the manifest and data for all sources, its status will change to 'ready'.  In addition the collector has a function called 'ready' which takes a callback and will either call it immediately if the status is 'ready', or will call it once the status changes to 'ready'.  As of this writing, there are no other statuses defined.
 
-The onData property of the Collector configuration is used to listen to changes.  Why is it provided up front and not dynamically addible like an EventEmitter?  Well, right now the Collector is performing a registration as soon as it is initialized, and you don't want to miss any events, so you need to provide your listener up front.  This is a very early draft of the system, and I will probably be changing to a manual 'register' call so that you can wire up your listeners in a nicer way.
-
-The function you provide to onData will receive (data, event).  Data is the entire data root, and event is a description of the change which occurred.  The event format follows the specification for a Delta (see Message Format in next section).  All events will look like Deltas, even inserts and the data retrieved by the payloads.
+The function you provide to onData (or collector.on 'data') will receive (data, event).  Data is the entire data root, and event is a description of the change which occurred.  The event format follows the specification for a Delta (see Message Format in next section).  All events will look like Deltas, even inserts and the data retrieved by the payloads.
 
 ## The Particle Message Format
 
@@ -163,9 +165,9 @@ I tried to make the interface a balance of clean and robust.  If you run into tr
 
 This is supported on both Collector and Stream instances.  When you pass a logging function such as console.log, you will be notified of relevant events in the Particle lifecycle.  Turning this on for most production and even development environments is not recommended, as the data volume will be huge.
 
-### Register
+### onRegister
 
-This function is present as a configuration option on the Collector, and as a fully implemented function on the Stream.
+This function is present as a configuration option on the Collector, and there is a corresponding fully implemented 'register' function exposed by the Stream.
 
 We'll talk about the Collector first.  You could add a custom function here for the purpose of:
 
@@ -175,7 +177,7 @@ We'll talk about the Collector first.  You could add a custom function here for 
 
 The last case is particularly useful - if you mock out the client side data model you can allow front end developers to continue work unimpeded by the back end implementation.
 
-The Stream's implementation of this function accepts the following arguments:
+The Stream's 'register' function accepts the following arguments:
 
 * identity
 * a receiver method (messageName, event) - call this whenever you want to send the Collector data
