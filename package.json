@@ -15,6 +15,7 @@
    },
    "devDependencies":{
       "qi":"*",
+      "uglify-js":"*",
       "mongodb":"*",
       "mongo-watch":"*",
       "mocha":"*",
