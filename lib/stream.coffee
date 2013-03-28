@@ -12,6 +12,8 @@ class Stream
 
     @policy = policy or {}
     @policy.dataSources or= {}
+    for name, def of @policy.dataSources
+      def.manifest ?= true
     @policy.identityLookup or= (identity, done) -> done null, identity
 
     @debug = policy.onDebug or ->
