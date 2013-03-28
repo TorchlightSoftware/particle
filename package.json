@@ -17,6 +17,7 @@
       "qi":"*",
       "uglify-js":"*",
       "mongodb":"*",
+      "connect":"*",
       "mongo-watch":"*",
       "mocha":"*",
       "should":"*"

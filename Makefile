@@ -2,7 +2,6 @@ dist:
 	@mkdir dist
 	@coffee -o dist -c lib/collector.coffee lib/client.coffee lib/applyOp.coffee lib/normalizePayload.coffee lib/util.coffee lib/main.coffee
 	@lodash exports=commonjs include=find,extend,clone,without,pick,keys -o dist/lodash.js
-	@echo 'require.alias("particle/dist/lodash.js", "particle/deps/lodash/index.js");' > dist/alias.js
 
 build: components dist
 	@component build --standalone Particle

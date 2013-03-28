@@ -1,3 +1,5 @@
 module.exports =
   Collector: require './collector'
-  Stream: require './stream'
+
+unless window?
+  module.exports.Stream = require './stream'

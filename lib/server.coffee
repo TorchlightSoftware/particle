@@ -31,7 +31,7 @@ server =
         @register msg.identity, @receive.bind(@, socket), @registered.bind(@, socket)
 
   error: (socket, err) ->
-    console.log 'server err:', {err}
+    console.log 'server err:', err?.stack or err
 
   disconnect: ->
     for conn in connections
