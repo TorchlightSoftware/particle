@@ -1,5 +1,4 @@
-{getType} = require './util'
-_ = require 'lodash'
+{getType, _} = require './util'
 
 module.exports = walk = (manifest, payload) ->
 

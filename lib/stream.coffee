@@ -1,5 +1,4 @@
-_ = require 'lodash'
-{empty} = require './util'
+{empty, _} = require './util'
 filterPayload = require './filterPayload'
 filterDelta = require './filterDelta'
 Server = require './server'

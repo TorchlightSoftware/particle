@@ -1,6 +1,13 @@
-_ = require 'lodash'
+# select lodash based on whether we're client or server
+if window?
+  {_} = require './lodash'
+else
+  _ = require 'lodash'
 
 module.exports = util =
+
+  # export the selected version of lodash so the rest of the lib can access it
+  _: _
 
   getType: (obj) -> Object.prototype.toString.call(obj).slice 8, -1
 

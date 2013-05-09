@@ -11,8 +11,10 @@ app.use (req, res, next) ->
   next()
 app.use connect.static join __dirname, '../public'
 
+port = 4042
+
 # listen on port
-server = http.createServer(app).listen 4042, ->
+server = http.createServer(app).listen port, ->
 
   stream = new Stream
     onDebug: logger
@@ -44,3 +46,4 @@ server = http.createServer(app).listen 4042, ->
             setInterval sendDelta, 1000
 
   stream.init server
+  console.log "started server at http://localhost:#{port}/test.html"

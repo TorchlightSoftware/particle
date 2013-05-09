@@ -1,6 +1,5 @@
-_ = require 'lodash'
 removers = ['unset']
-{indexContaining} = require './util'
+{indexContaining, _} = require './util'
 
 module.exports = (dataRoot, {root, oplist}) =>
 

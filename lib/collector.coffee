@@ -3,11 +3,10 @@ if window?
 else
   {EventEmitter} = require 'events'
 
-{objInclude, find} = require './util'
+{objInclude, find, _} = require './util'
 normalizePayload = require './normalizePayload'
 Client = require './client'
 applyOp = require './applyOp'
-_ = require 'lodash'
 
 class Collector extends EventEmitter
 

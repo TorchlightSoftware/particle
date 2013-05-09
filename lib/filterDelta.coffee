@@ -1,6 +1,5 @@
 filterPayload = require './filterPayload'
-{empty} = require './util'
-_ = require 'lodash'
+{empty, _} = require './util'
 
 validOp = (node, op) ->
   for location in op.path.split '.'
