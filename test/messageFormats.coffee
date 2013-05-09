@@ -5,10 +5,10 @@ mongoWatchPolicy = require '../sample/mongoWatchPolicy'
 JaySchema = require 'jayschema'
 jsv = new JaySchema
 
-describe 'Stream - Policy Input', ->
+describe 'Stream - Policy Input -', ->
 
   it 'should validate mongoWatchPolicy', ->
-    errors = streamInPolicy mongoWatchPolicy()
+    errors = streamInPolicy mongoWatchPolicy(null, true)
     errors.should.be.empty
 
 describe 'JSON validator', ->
