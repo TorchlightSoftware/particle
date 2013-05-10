@@ -3,5 +3,5 @@ node_modules
 npm-debug.log
 sample/public
 components
-build
+build/*
 dist

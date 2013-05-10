@@ -1,0 +1,21 @@
+#!/bin/bash
+current=$(dirname $0)
+public=$current/public
+client=$current/client
+root=$current/..
+
+rm -rf   $public
+mkdir $public
+
+# CoffeeScript
+coffee -o $public/ -c $client/
+
+# Particle
+cd $root && make
+cp $root/particle.js $client/particle.js
+
+# Non-built files
+cp -R $client/*.html $public
+cp -R $client/*.js $public
+
+echo "Build completed!"
