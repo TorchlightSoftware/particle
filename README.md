@@ -6,6 +6,24 @@ Currently the client side data model is read only.  This is not enforced, but if
 
 In the future, it is possible we will support a more direct strategy for updating the data model.  This is a complex problem to solve because you need to handle conflict resolution on shared data.  Ultimately the server must have final say in what operations are allowed.
 
+## Credit/Inspiration
+
+This was mainly inspired by personal experience of trying to build a chat server based on message passing semantics.  We came to the conclusion that the tool we were using did not allow us to describe the problem at the right level of abstraction.  We don't really care how the data gets there, and we don't want to miss any data, which is a danger with message passing.  We need to always have the current state of the data, and we need to be notified of changes.
+
+For an elaboration on these ideas, check out this excellent article:
+
+http://awelonblue.wordpress.com/2012/07/01/why-not-events/
+
+To understand the role that event driven systems play in a business architecture:
+
+http://martinfowler.com/bliki/CQRS.html
+
+Ultimately I see technologies like Particle enabling us to build real time awareness systems which can give modern businesses a huge competitive advantage.  These technologies can also be used to build systems that feel responsive and natural, and take a more active role in serving our needs.
+
+Another good resource on the subject is the book [Event Processing: Designing IT Systems for Agile Companies](http://www.amazon.com/Event-Processing-Designing-Systems-Companies/dp/0071633502).
+
+Here's an [interview with the author](http://www.youtube.com/watch?v=b6Lb0FRojXM).
+
 ## Install
 
 ```bash
@@ -184,20 +202,6 @@ The Stream's 'register' function accepts the following arguments:
 * a callback (err) - to be called when registration has completed (or failed)
 
 It is responsible for establishing a communication channel with a particular Collector.  See Particle Message Format above.  You can call this function manually in order to mimic a Collector registration.
-
-## Credit/Inspiration
-
-This was mainly inspired by personal experience of trying to build a chat server based on message passing semantics.  We came to the conclusion that the tool we were using did not allow us to describe the problem at the right level of abstraction.  We don't really care how the data gets there, and we don't want to miss any data, which is a danger with message passing.  We need to always have the current state of the data, and we need to be notified of changes.
-
-As the library was under construction, I came across this article:
-
-http://martinfowler.com/bliki/CQRS.html
-
-I think this is a good starting point for understanding how different data-acquisition strategies can work together in an event driven architecture.  Ultimately I see technologies like Particle enabling us to build real time awareness systems which can give modern businesses a huge competitive advantage.  These technologies can also be used to build systems that feel responsive and natural, and take a more active role in serving our needs.
-
-Another good resource on the subject is the book [Event Processing: Designing IT Systems for Agile Companies](http://www.amazon.com/Event-Processing-Designing-Systems-Companies/dp/0071633502).
-
-Here's an [interview with the author](http://www.youtube.com/watch?v=b6Lb0FRojXM).
 
 ## LICENSE
 
