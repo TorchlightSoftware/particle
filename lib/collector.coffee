@@ -1,9 +1,4 @@
-if window?
-  EventEmitter = require 'emitter'
-else
-  {EventEmitter} = require 'events'
-
-{objInclude, find, _} = require './util'
+{objInclude, find, _, EventEmitter} = require './util'
 normalizePayload = require './normalizePayload'
 Client = require './client'
 applyOp = require './applyOp'

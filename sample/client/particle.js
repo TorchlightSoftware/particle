@@ -3445,20 +3445,20 @@ require.register("particle/dist/main.js", function(exports, require, module){
 require.register("particle/dist/lodash.js", function(exports, require, module){
 /**
  * @license
- * Lo-Dash 1.1.0 (Custom Build) <http://lodash.com/>
+ * Lo-Dash 1.0.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash exports="commonjs" include="find,extend,clone,without,pick,keys" -o dist/lodash.js`
  * Copyright 2012-2013 The Dojo Foundation <http://dojofoundation.org/>
  * Based on Underscore.js 1.4.4 <http://underscorejs.org/>
  * Copyright 2009-2013 Jeremy Ashkenas, DocumentCloud Inc.
  * Available under MIT license <http://lodash.com/license>
  */
-;(function(window) {
-
-  /** Used as a safe reference for `undefined` in pre ES5 environments */
-  var undefined;
+;(function(window, undefined) {
 
   /** Detect free variable `exports` */
   var freeExports = typeof exports == 'object' && exports;
+
+  /** Detect free variable `module` */
+  var freeModule = typeof module == 'object' && module && module.exports == freeExports && module;
 
   /** Detect free variable `global` and use it as `window` */
   var freeGlobal = typeof global == 'object' && global;
@@ -3466,28 +3466,45 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
     window = freeGlobal;
   }
 
+  /** Used for array and object method references */
+  var arrayRef = [],
+      objectRef = {};
+
   /** Used to generate unique IDs */
   var idCounter = 0;
 
   /** Used internally to indicate various things */
-  var indicatorObject = {};
+  var indicatorObject = objectRef;
+
+  /** Used by `cachedContains` as the default size when optimizations are enabled for large arrays */
+  var largeArraySize = 30;
+
+  /** Used to restore the original `_` reference in `noConflict` */
+  var oldDash = window._;
+
+  /** Used to match HTML entities */
+  var reEscapedHtml = /&(?:amp|lt|gt|quot|#39);/g;
 
   /** Used to match empty string literals in compiled template source */
   var reEmptyStringLeading = /\b__p \+= '';/g,
       reEmptyStringMiddle = /\b(__p \+=) '' \+/g,
       reEmptyStringTrailing = /(__e\(.*?\)|\b__t\)) \+\n'';/g;
 
-  /** Used to match HTML entities */
-  var reEscapedHtml = /&(?:amp|lt|gt|quot|#39);/g;
+  /** Used to match regexp flags from their coerced string values */
+  var reFlags = /\w*$/;
+
+  /** Used to detect if a method is native */
+  var reNative = RegExp('^' +
+    (objectRef.valueOf + '')
+      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/valueOf|for [^\]]+/g, '.+?') + '$'
+  );
 
   /**
    * Used to match ES6 template delimiters
    * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-7.8.6
    */
   var reEsTemplate = /\$\{([^\\}]*(?:\\.[^\\}]*)*)\}/g;
-
-  /** Used to match regexp flags from their coerced string values */
-  var reFlags = /\w*$/;
 
   /** Used to match "interpolate" template delimiters */
   var reInterpolate = /<%=([\s\S]+?)%>/g;
@@ -3502,13 +3519,31 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
   var reUnescapedString = /['\n\r\t\u2028\u2029\\]/g;
 
   /** Used to fix the JScript [[DontEnum]] bug */
-  var shadowedProps = [
+  var shadowed = [
     'constructor', 'hasOwnProperty', 'isPrototypeOf', 'propertyIsEnumerable',
     'toLocaleString', 'toString', 'valueOf'
   ];
 
   /** Used to make template sourceURLs easier to identify */
   var templateCounter = 0;
+
+  /** Native method shortcuts */
+  var ceil = Math.ceil,
+      concat = arrayRef.concat,
+      floor = Math.floor,
+      hasOwnProperty = objectRef.hasOwnProperty,
+      push = arrayRef.push,
+      toString = objectRef.toString;
+
+  /* Native method shortcuts for methods with the same name as other `lodash` methods */
+  var nativeBind = reNative.test(nativeBind = slice.bind) && nativeBind,
+      nativeIsArray = reNative.test(nativeIsArray = Array.isArray) && nativeIsArray,
+      nativeIsFinite = window.isFinite,
+      nativeIsNaN = window.isNaN,
+      nativeKeys = reNative.test(nativeKeys = Object.keys) && nativeKeys,
+      nativeMax = Math.max,
+      nativeMin = Math.min,
+      nativeRandom = Math.random;
 
   /** `Object#toString` result shortcuts */
   var argsClass = '[object Arguments]',
@@ -3521,6 +3556,72 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
       regexpClass = '[object RegExp]',
       stringClass = '[object String]';
 
+  /** Detect various environments */
+  var isIeOpera = !!window.attachEvent,
+      isV8 = nativeBind && !/\n|true/.test(nativeBind + isIeOpera);
+
+  /* Detect if `Function#bind` exists and is inferred to be fast (all but V8) */
+  var isBindFast = nativeBind && !isV8;
+
+  /* Detect if `Object.keys` exists and is inferred to be fast (IE, Opera, V8) */
+  var isKeysFast = nativeKeys && (isIeOpera || isV8);
+
+  /**
+   * Detect the JScript [[DontEnum]] bug:
+   *
+   * In IE < 9 an objects own properties, shadowing non-enumerable ones, are
+   * made non-enumerable as well.
+   */
+  var hasDontEnumBug;
+
+  /**
+   * Detect if a `prototype` properties are enumerable by default:
+   *
+   * Firefox < 3.6, Opera > 9.50 - Opera < 11.60, and Safari < 5.1
+   * (if the prototype or a property on the prototype has been set)
+   * incorrectly sets a function's `prototype` property [[Enumerable]]
+   * value to `true`.
+   */
+  var hasEnumPrototype;
+
+  /** Detect if `arguments` object indexes are non-enumerable (Firefox < 4, IE < 9, PhantomJS, Safari < 5.1) */
+  var nonEnumArgs = true;
+
+  (function() {
+    var props = [];
+    function ctor() { this.x = 1; }
+    ctor.prototype = { 'valueOf': 1, 'y': 1 };
+    for (var prop in new ctor) { props.push(prop); }
+    for (prop in arguments) { nonEnumArgs = !prop; }
+
+    hasDontEnumBug = !/valueOf/.test(props);
+    hasEnumPrototype = ctor.propertyIsEnumerable('prototype');
+
+  }(1));
+
+  /** Detect if `arguments` objects are `Object` objects (all but Opera < 10.5) */
+  var argsAreObjects = arguments.constructor == Object;
+
+  /** Detect if `arguments` objects [[Class]] is unresolvable (Firefox < 4, IE < 9) */
+  var noArgsClass = !isArguments(arguments);
+
+  /**
+   * Detect lack of support for accessing string characters by index:
+   *
+   * IE < 8 can't access characters by index and IE 8 can only access
+   * characters by index on string literals.
+   */
+  var noCharByIndex = ('x'[0] + Object('x')[0]) != 'xx';
+
+  /**
+   * Detect if a DOM node's [[Class]] is unresolvable (IE < 9)
+   * and that the JS engine won't error when attempting to coerce an object to
+   * a string without a `toString` function.
+   */
+  try {
+    var noNodeClass = toString.call(document) == objectClass && !({ 'toString': 0 } + '');
+  } catch(e) { }
+
   /** Used to identify object classifications that `_.clone` supports */
   var cloneableClasses = {};
   cloneableClasses[funcClass] = false;
@@ -3528,6 +3629,16 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
   cloneableClasses[boolClass] = cloneableClasses[dateClass] =
   cloneableClasses[numberClass] = cloneableClasses[objectClass] =
   cloneableClasses[regexpClass] = cloneableClasses[stringClass] = true;
+
+  /** Used to lookup a built-in constructor by [[Class]] */
+  var ctorByClass = {};
+  ctorByClass[arrayClass] = Array;
+  ctorByClass[boolClass] = Boolean;
+  ctorByClass[dateClass] = Date;
+  ctorByClass[objectClass] = Object;
+  ctorByClass[numberClass] = Number;
+  ctorByClass[regexpClass] = RegExp;
+  ctorByClass[stringClass] = String;
 
   /** Used to determine if values are of the language type Object */
   var objectTypes = {
@@ -3552,56 +3663,6 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
 
   /*--------------------------------------------------------------------------*/
 
-  /** Used for `Array` and `Object` method references */
-  var arrayRef = Array(),
-      objectRef = Object();
-
-  /** Used to restore the original `_` reference in `noConflict` */
-  var oldDash = window._;
-
-  /** Used to detect if a method is native */
-  var reNative = RegExp('^' +
-    String(objectRef.valueOf)
-      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      .replace(/valueOf|for [^\]]+/g, '.+?') + '$'
-  );
-
-  /** Native method shortcuts */
-  var ceil = Math.ceil,
-      clearTimeout = window.clearTimeout,
-      concat = arrayRef.concat,
-      floor = Math.floor,
-      hasOwnProperty = objectRef.hasOwnProperty,
-      push = arrayRef.push,
-      setTimeout = window.setTimeout,
-      toString = objectRef.toString;
-
-  /* Native method shortcuts for methods with the same name as other `lodash` methods */
-  var nativeBind = reNative.test(nativeBind = slice.bind) && nativeBind,
-      nativeIsArray = reNative.test(nativeIsArray = Array.isArray) && nativeIsArray,
-      nativeIsFinite = window.isFinite,
-      nativeIsNaN = window.isNaN,
-      nativeKeys = reNative.test(nativeKeys = Object.keys) && nativeKeys,
-      nativeMax = Math.max,
-      nativeMin = Math.min,
-      nativeRandom = Math.random;
-
-  /** Detect various environments */
-  var isIeOpera = reNative.test(window.attachEvent),
-      isV8 = nativeBind && !/\n|true/.test(nativeBind + isIeOpera);
-
-  /** Used to lookup a built-in constructor by [[Class]] */
-  var ctorByClass = {};
-  ctorByClass[arrayClass] = Array;
-  ctorByClass[boolClass] = Boolean;
-  ctorByClass[dateClass] = Date;
-  ctorByClass[objectClass] = Object;
-  ctorByClass[numberClass] = Number;
-  ctorByClass[regexpClass] = RegExp;
-  ctorByClass[stringClass] = String;
-
-  /*--------------------------------------------------------------------------*/
-
   /**
    * Creates a `lodash` object, that wraps the given `value`, to enable method
    * chaining.
@@ -3610,28 +3671,23 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    * `concat`, `join`, `pop`, `push`, `reverse`, `shift`, `slice`, `sort`, `splice`,
    * and `unshift`
    *
-   * Chaining is supported in custom builds as long as the `value` method is
-   * implicitly or explicitly included in the build.
-   *
    * The chainable wrapper functions are:
-   * `after`, `assign`, `bind`, `bindAll`, `bindKey`, `chain`, `compact`,
-   * `compose`, `concat`, `countBy`, `createCallback`, `debounce`, `defaults`,
-   * `defer`, `delay`, `difference`, `filter`, `flatten`, `forEach`, `forIn`,
-   * `forOwn`, `functions`, `groupBy`, `initial`, `intersection`, `invert`,
-   * `invoke`, `keys`, `map`, `max`, `memoize`, `merge`, `min`, `object`, `omit`,
-   * `once`, `pairs`, `partial`, `partialRight`, `pick`, `pluck`, `push`, `range`,
-   * `reject`, `rest`, `reverse`, `shuffle`, `slice`, `sort`, `sortBy`, `splice`,
-   * `tap`, `throttle`, `times`, `toArray`, `union`, `uniq`, `unshift`, `values`,
-   * `where`, `without`, `wrap`, and `zip`
+   * `after`, `assign`, `bind`, `bindAll`, `bindKey`, `chain`, `compact`, `compose`,
+   * `concat`, `countBy`, `debounce`, `defaults`, `defer`, `delay`, `difference`,
+   * `filter`, `flatten`, `forEach`, `forIn`, `forOwn`, `functions`, `groupBy`,
+   * `initial`, `intersection`, `invert`, `invoke`, `keys`, `map`, `max`, `memoize`,
+   * `merge`, `min`, `object`, `omit`, `once`, `pairs`, `partial`, `partialRight`,
+   * `pick`, `pluck`, `push`, `range`, `reject`, `rest`, `reverse`, `shuffle`,
+   * `slice`, `sort`, `sortBy`, `splice`, `tap`, `throttle`, `times`, `toArray`,
+   * `union`, `uniq`, `unshift`, `values`, `where`, `without`, `wrap`, and `zip`
    *
    * The non-chainable wrapper functions are:
-   * `clone`, `cloneDeep`, `contains`, `escape`, `every`, `find`, `has`,
-   * `identity`, `indexOf`, `isArguments`, `isArray`, `isBoolean`, `isDate`,
-   * `isElement`, `isEmpty`, `isEqual`, `isFinite`, `isFunction`, `isNaN`,
-   * `isNull`, `isNumber`, `isObject`, `isPlainObject`, `isRegExp`, `isString`,
-   * `isUndefined`, `join`, `lastIndexOf`, `mixin`, `noConflict`, `parseInt`,
-   * `pop`, `random`, `reduce`, `reduceRight`, `result`, `shift`, `size`, `some`,
-   * `sortedIndex`, `runInContext`, `template`, `unescape`, `uniqueId`, and `value`
+   * `clone`, `cloneDeep`, `contains`, `escape`, `every`, `find`, `has`, `identity`,
+   * `indexOf`, `isArguments`, `isArray`, `isBoolean`, `isDate`, `isElement`, `isEmpty`,
+   * `isEqual`, `isFinite`, `isFunction`, `isNaN`, `isNull`, `isNumber`, `isObject`,
+   * `isPlainObject`, `isRegExp`, `isString`, `isUndefined`, `join`, `lastIndexOf`,
+   * `mixin`, `noConflict`, `pop`, `random`, `reduce`, `reduceRight`, `result`,
+   * `shift`, `size`, `some`, `sortedIndex`, `template`, `unescape`, and `uniqueId`
    *
    * The wrapper functions `first` and `last` return wrapped values when `n` is
    * passed, otherwise they return unwrapped values.
@@ -3646,107 +3702,6 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
     // no operation performed
   }
 
-  /**
-   * An object used to flag environments features.
-   *
-   * @static
-   * @memberOf _
-   * @type Object
-   */
-  var support = lodash.support = {};
-
-  (function() {
-    var ctor = function() { this.x = 1; },
-        object = { '0': 1, 'length': 1 },
-        props = [];
-
-    ctor.prototype = { 'valueOf': 1, 'y': 1 };
-    for (var prop in new ctor) { props.push(prop); }
-    for (prop in arguments) { }
-
-    /**
-     * Detect if `arguments` objects are `Object` objects (all but Opera < 10.5).
-     *
-     * @memberOf _.support
-     * @type Boolean
-     */
-    support.argsObject = arguments.constructor == Object;
-
-    /**
-     * Detect if an `arguments` object's [[Class]] is resolvable (all but Firefox < 4, IE < 9).
-     *
-     * @memberOf _.support
-     * @type Boolean
-     */
-    support.argsClass = isArguments(arguments);
-
-    /**
-     * Detect if `prototype` properties are enumerable by default.
-     *
-     * Firefox < 3.6, Opera > 9.50 - Opera < 11.60, and Safari < 5.1
-     * (if the prototype or a property on the prototype has been set)
-     * incorrectly sets a function's `prototype` property [[Enumerable]]
-     * value to `true`.
-     *
-     * @memberOf _.support
-     * @type Boolean
-     */
-    support.enumPrototypes = ctor.propertyIsEnumerable('prototype');
-
-    /**
-     * Detect if `Function#bind` exists and is inferred to be fast (all but V8).
-     *
-     * @memberOf _.support
-     * @type Boolean
-     */
-    support.fastBind = nativeBind && !isV8;
-
-    /**
-     * Detect if `arguments` object indexes are non-enumerable
-     * (Firefox < 4, IE < 9, PhantomJS, Safari < 5.1).
-     *
-     * @memberOf _.support
-     * @type Boolean
-     */
-    support.nonEnumArgs = prop != 0;
-
-    /**
-     * Detect if properties shadowing those on `Object.prototype` are non-enumerable.
-     *
-     * In IE < 9 an objects own properties, shadowing non-enumerable ones, are
-     * made non-enumerable as well (a.k.a the JScript [[DontEnum]] bug).
-     *
-     * @memberOf _.support
-     * @type Boolean
-     */
-    support.nonEnumShadows = !/valueOf/.test(props);
-
-    /**
-     * Detect lack of support for accessing string characters by index.
-     *
-     * IE < 8 can't access characters by index and IE 8 can only access
-     * characters by index on string literals.
-     *
-     * @memberOf _.support
-     * @type Boolean
-     */
-    support.unindexedChars = ('x'[0] + Object('x')[0]) != 'xx';
-
-    /**
-     * Detect if a DOM node's [[Class]] is resolvable (all but IE < 9)
-     * and that the JS engine errors when attempting to coerce an object to
-     * a string without a `toString` function.
-     *
-     * @memberOf _.support
-     * @type Boolean
-     */
-    try {
-      support.nodeClass = !(toString.call(document) == objectClass && !({ 'toString': 0 } + ''));
-    } catch(e) {
-      support.nodeClass = true;
-    }
-  }(1));
-
   /*--------------------------------------------------------------------------*/
 
   /**
@@ -3757,90 +3712,90 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    * @returns {String} Returns the interpolated text.
    */
   var iteratorTemplate = function(obj) {
-
+    
     var __p = 'var index, iterable = ' +
-    (obj.firstArg) +
-    ', result = ' +
-    (obj.init) +
-    ';\nif (!iterable) return result;\n' +
-    (obj.top) +
+    (obj.firstArg ) +
+    ', result = iterable;\nif (!iterable) return result;\n' +
+    (obj.top ) +
     ';\n';
      if (obj.arrays) {
     __p += 'var length = iterable.length; index = -1;\nif (' +
-    (obj.arrays) +
+    (obj.arrays ) +
     ') {  ';
-     if (support.unindexedChars) {
+     if (obj.noCharByIndex) {
     __p += '\n  if (isString(iterable)) {\n    iterable = iterable.split(\'\')\n  }  ';
-     }
+     } ;
     __p += '\n  while (++index < length) {\n    ' +
-    (obj.loop) +
+    (obj.loop ) +
     '\n  }\n}\nelse {  ';
-      } else if (support.nonEnumArgs) {
+      } else if (obj.nonEnumArgs) {
     __p += '\n  var length = iterable.length; index = -1;\n  if (length && isArguments(iterable)) {\n    while (++index < length) {\n      index += \'\';\n      ' +
-    (obj.loop) +
+    (obj.loop ) +
     '\n    }\n  } else {  ';
-     }
-
-     if (support.enumPrototypes) {
+     } ;
+    
+     if (obj.hasEnumPrototype) {
     __p += '\n  var skipProto = typeof iterable == \'function\';\n  ';
-     }
-
-     if (obj.useHas && obj.useKeys) {
-    __p += '\n  var ownIndex = -1,\n      ownProps = objectTypes[typeof iterable] ? keys(iterable) : [],\n      length = ownProps.length;\n\n  while (++ownIndex < length) {\n    index = ownProps[ownIndex];\n    ';
-     if (support.enumPrototypes) {
+     } ;
+    
+     if (obj.isKeysFast && obj.useHas) {
+    __p += '\n  var ownIndex = -1,\n      ownProps = objectTypes[typeof iterable] ? nativeKeys(iterable) : [],\n      length = ownProps.length;\n\n  while (++ownIndex < length) {\n    index = ownProps[ownIndex];\n    ';
+     if (obj.hasEnumPrototype) {
     __p += 'if (!(skipProto && index == \'prototype\')) {\n  ';
-     }
+     } ;
     __p += 
-    (obj.loop);
-     if (support.enumPrototypes) {
+    (obj.loop ) +
+    '';
+     if (obj.hasEnumPrototype) {
     __p += '}\n';
-     }
+     } ;
     __p += '  }  ';
      } else {
     __p += '\n  for (index in iterable) {';
-        if (support.enumPrototypes || obj.useHas) {
+        if (obj.hasEnumPrototype || obj.useHas) {
     __p += '\n    if (';
-          if (support.enumPrototypes) {
+          if (obj.hasEnumPrototype) {
     __p += '!(skipProto && index == \'prototype\')';
-     }      if (support.enumPrototypes && obj.useHas) {
+     }      if (obj.hasEnumPrototype && obj.useHas) {
     __p += ' && ';
      }      if (obj.useHas) {
     __p += 'hasOwnProperty.call(iterable, index)';
-     }
+     }    ;
     __p += ') {    ';
-     }
+     } ;
     __p += 
-    (obj.loop) +
+    (obj.loop ) +
     ';    ';
-     if (support.enumPrototypes || obj.useHas) {
+     if (obj.hasEnumPrototype || obj.useHas) {
     __p += '\n    }';
-     }
-    __p += '\n  }    ';
-     if (support.nonEnumShadows) {
-    __p += '\n\n  var ctor = iterable.constructor;\n      ';
+     } ;
+    __p += '\n  }  ';
+     } ;
+    
+     if (obj.hasDontEnumBug) {
+    __p += '\n\n  var ctor = iterable.constructor;\n    ';
      for (var k = 0; k < 7; k++) {
     __p += '\n  index = \'' +
-    (obj.shadowedProps[k]) +
+    (obj.shadowed[k] ) +
     '\';\n  if (';
-          if (obj.shadowedProps[k] == 'constructor') {
+          if (obj.shadowed[k] == 'constructor') {
     __p += '!(ctor && ctor.prototype === iterable) && ';
-          }
+          } ;
     __p += 'hasOwnProperty.call(iterable, index)) {\n    ' +
-    (obj.loop) +
-    '\n  }      ';
-     }
-
-     }
-
-     }
-
-     if (obj.arrays || support.nonEnumArgs) {
+    (obj.loop ) +
+    '\n  }    ';
+     } ;
+    
+     } ;
+    
+     if (obj.arrays || obj.nonEnumArgs) {
     __p += '\n}';
-     }
+     } ;
     __p += 
-    (obj.bottom) +
+    (obj.bottom ) +
     ';\nreturn result';
-
+    
+    
     return __p
   };
 
@@ -3861,7 +3816,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
   /** Reusable iterator options shared by `each`, `forIn`, and `forOwn` */
   var eachIteratorOptions = {
     'args': 'collection, callback, thisArg',
-    'top': "callback = callback && typeof thisArg == 'undefined' ? callback : lodash.createCallback(callback, thisArg)",
+    'top': "callback = callback && typeof thisArg == 'undefined' ? callback : createCallback(callback, thisArg)",
     'arrays': "typeof length == 'number'",
     'loop': 'if (callback(iterable[index], index, collection) === false) return result'
   };
@@ -3881,13 +3836,15 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    * @private
    * @param {Array} array The array to search.
    * @param {Mixed} value The value to search for.
-   * @param {Number} fromIndex The index to search from.
-   * @param {Number} largeSize The length at which an array is considered large.
+   * @param {Number} [fromIndex=0] The index to search from.
+   * @param {Number} [largeSize=30] The length at which an array is considered large.
    * @returns {Boolean} Returns `true`, if `value` is found, else `false`.
    */
   function cachedContains(array, fromIndex, largeSize) {
+    fromIndex || (fromIndex = 0);
+
     var length = array.length,
-        isLarge = (length - fromIndex) >= largeSize;
+        isLarge = (length - fromIndex) >= (largeSize || largeArraySize);
 
     if (isLarge) {
       var cache = {},
@@ -3896,13 +3853,13 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
       while (++index < length) {
         // manually coerce `value` to a string because `hasOwnProperty`, in some
         // older versions of Firefox, coerces objects incorrectly
-        var key = String(array[index]);
+        var key = array[index] + '';
         (hasOwnProperty.call(cache, key) ? cache[key] : (cache[key] = [])).push(array[index]);
       }
     }
     return function(value) {
       if (isLarge) {
-        var key = String(value);
+        var key = value + '';
         return hasOwnProperty.call(cache, key) && indexOf(cache[key], value) > -1;
       }
       return indexOf(array, value, fromIndex) > -1;
@@ -3959,24 +3916,19 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    * @param {Function|String} func The function to bind or the method name.
    * @param {Mixed} [thisArg] The `this` binding of `func`.
    * @param {Array} partialArgs An array of arguments to be partially applied.
-   * @param {Object} [idicator] Used to indicate binding by key or partially
-   *  applying arguments from the right.
+   * @param {Object} [rightIndicator] Used to indicate partially applying arguments from the right.
    * @returns {Function} Returns the new bound function.
    */
-  function createBound(func, thisArg, partialArgs, indicator) {
+  function createBound(func, thisArg, partialArgs, rightIndicator) {
     var isFunc = isFunction(func),
         isPartial = !partialArgs,
         key = thisArg;
 
     // juggle arguments
     if (isPartial) {
-      var rightIndicator = indicator;
       partialArgs = thisArg;
     }
-    else if (!isFunc) {
-      if (!indicator) {
-        throw new TypeError;
-      }
+    if (!isFunc) {
       thisArg = func;
     }
 
@@ -3995,7 +3947,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
           : partialArgs;
       }
       if (this instanceof bound) {
-        // ensure `new bound` is an instance of `func`
+        // ensure `new bound` is an instance of `bound` and `func`
         noop.prototype = func.prototype;
         thisBinding = new noop;
         noop.prototype = null;
@@ -4011,6 +3963,64 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
   }
 
   /**
+   * Produces a callback bound to an optional `thisArg`. If `func` is a property
+   * name, the created callback will return the property value for a given element.
+   * If `func` is an object, the created callback will return `true` for elements
+   * that contain the equivalent object properties, otherwise it will return `false`.
+   *
+   * @private
+   * @param {Mixed} [func=identity] The value to convert to a callback.
+   * @param {Mixed} [thisArg] The `this` binding of the created callback.
+   * @param {Number} [argCount=3] The number of arguments the callback accepts.
+   * @returns {Function} Returns a callback function.
+   */
+  function createCallback(func, thisArg, argCount) {
+    if (func == null) {
+      return identity;
+    }
+    var type = typeof func;
+    if (type != 'function') {
+      if (type != 'object') {
+        return function(object) {
+          return object[func];
+        };
+      }
+      var props = keys(func);
+      return function(object) {
+        var length = props.length,
+            result = false;
+        while (length--) {
+          if (!(result = isEqual(object[props[length]], func[props[length]], indicatorObject))) {
+            break;
+          }
+        }
+        return result;
+      };
+    }
+    if (typeof thisArg != 'undefined') {
+      if (argCount === 1) {
+        return function(value) {
+          return func.call(thisArg, value);
+        };
+      }
+      if (argCount === 2) {
+        return function(a, b) {
+          return func.call(thisArg, a, b);
+        };
+      }
+      if (argCount === 4) {
+        return function(accumulator, value, index, object) {
+          return func.call(thisArg, accumulator, value, index, object);
+        };
+      }
+      return function(value, index, object) {
+        return func.call(thisArg, value, index, object);
+      };
+    }
+    return func;
+  }
+
+  /**
    * Creates compiled iteration functions.
    *
    * @private
@@ -4021,20 +4031,25 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    *  top - A string of code to execute before the iteration branches.
    *  loop - A string of code to execute in the object loop.
    *  bottom - A string of code to execute after the iteration branches.
+   *
    * @returns {Function} Returns the compiled function.
    */
   function createIterator() {
     var data = {
-      // data properties
-      'shadowedProps': shadowedProps,
+      // support properties
+      'hasDontEnumBug': hasDontEnumBug,
+      'hasEnumPrototype': hasEnumPrototype,
+      'isKeysFast': isKeysFast,
+      'nonEnumArgs': nonEnumArgs,
+      'noCharByIndex': noCharByIndex,
+      'shadowed': shadowed,
+
       // iterator options
       'arrays': 'isArray(iterable)',
       'bottom': '',
-      'init': 'iterable',
       'loop': '',
       'top': '',
-      'useHas': true,
-      'useKeys': !!keys
+      'useHas': true
     };
 
     // merge options into a template data object
@@ -4048,16 +4063,32 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
 
     // create the function factory
     var factory = Function(
-        'hasOwnProperty, isArguments, isArray, isString, keys, ' +
-        'lodash, objectTypes',
+        'createCallback, hasOwnProperty, isArguments, isArray, isString, ' +
+        'objectTypes, nativeKeys',
       'return function(' + args + ') {\n' + iteratorTemplate(data) + '\n}'
     );
     // return the compiled function
     return factory(
-      hasOwnProperty, isArguments, isArray, isString, keys,
-      lodash, objectTypes
+      createCallback, hasOwnProperty, isArguments, isArray, isString,
+      objectTypes, nativeKeys
     );
   }
+
+  /**
+   * A function compiled to iterate `arguments` objects, arrays, objects, and
+   * strings consistenly across environments, executing the `callback` for each
+   * element in the `collection`. The `callback` is bound to `thisArg` and invoked
+   * with three arguments; (value, index|key, collection). Callbacks may exit
+   * iteration early by explicitly returning `false`.
+   *
+   * @private
+   * @type Function
+   * @param {Array|Object|String} collection The collection to iterate over.
+   * @param {Function} [callback=identity] The function called per iteration.
+   * @param {Mixed} [thisArg] The `this` binding of `callback`.
+   * @returns {Array|Object|String} Returns `collection`.
+   */
+  var each = createIterator(eachIteratorOptions);
 
   /**
    * Used by `template` to escape characters for inclusion in compiled
@@ -4165,279 +4196,10 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
     return toString.call(value) == argsClass;
   }
   // fallback for browsers that can't detect `arguments` objects by [[Class]]
-  if (!support.argsClass) {
+  if (noArgsClass) {
     isArguments = function(value) {
       return value ? hasOwnProperty.call(value, 'callee') : false;
     };
-  }
-
-  /**
-   * Checks if `value` is an array.
-   *
-   * @static
-   * @memberOf _
-   * @category Objects
-   * @param {Mixed} value The value to check.
-   * @returns {Boolean} Returns `true`, if the `value` is an array, else `false`.
-   * @example
-   *
-   * (function() { return _.isArray(arguments); })();
-   * // => false
-   *
-   * _.isArray([1, 2, 3]);
-   * // => true
-   */
-  var isArray = nativeIsArray || function(value) {
-    // `instanceof` may cause a memory leak in IE 7 if `value` is a host object
-    // http://ajaxian.com/archives/working-aroung-the-instanceof-memory-leak
-    return (support.argsObject && value instanceof Array) || toString.call(value) == arrayClass;
-  };
-
-  /**
-   * A fallback implementation of `Object.keys` that produces an array of the
-   * given object's own enumerable property names.
-   *
-   * @private
-   * @type Function
-   * @param {Object} object The object to inspect.
-   * @returns {Array} Returns a new array of property names.
-   */
-  var shimKeys = createIterator({
-    'args': 'object',
-    'init': '[]',
-    'top': 'if (!(objectTypes[typeof object])) return result',
-    'loop': 'result.push(index)',
-    'arrays': false
-  });
-
-  /**
-   * Creates an array composed of the own enumerable property names of `object`.
-   *
-   * @static
-   * @memberOf _
-   * @category Objects
-   * @param {Object} object The object to inspect.
-   * @returns {Array} Returns a new array of property names.
-   * @example
-   *
-   * _.keys({ 'one': 1, 'two': 2, 'three': 3 });
-   * // => ['one', 'two', 'three'] (order is not guaranteed)
-   */
-  var keys = !nativeKeys ? shimKeys : function(object) {
-    if (!isObject(object)) {
-      return [];
-    }
-    if ((support.enumPrototypes && typeof object == 'function') ||
-        (support.nonEnumArgs && object.length && isArguments(object))) {
-      return shimKeys(object);
-    }
-    return nativeKeys(object);
-  };
-
-  /**
-   * A function compiled to iterate `arguments` objects, arrays, objects, and
-   * strings consistenly across environments, executing the `callback` for each
-   * element in the `collection`. The `callback` is bound to `thisArg` and invoked
-   * with three arguments; (value, index|key, collection). Callbacks may exit
-   * iteration early by explicitly returning `false`.
-   *
-   * @private
-   * @type Function
-   * @param {Array|Object|String} collection The collection to iterate over.
-   * @param {Function} [callback=identity] The function called per iteration.
-   * @param {Mixed} [thisArg] The `this` binding of `callback`.
-   * @returns {Array|Object|String} Returns `collection`.
-   */
-  var each = createIterator(eachIteratorOptions);
-
-  /**
-   * Used to convert characters to HTML entities:
-   *
-   * Though the `>` character is escaped for symmetry, characters like `>` and `/`
-   * don't require escaping in HTML and have no special meaning unless they're part
-   * of a tag or an unquoted attribute value.
-   * http://mathiasbynens.be/notes/ambiguous-ampersands (under "semi-related fun fact")
-   */
-  var htmlEscapes = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  };
-
-  /** Used to convert HTML entities to characters */
-  var htmlUnescapes = {'&amp;':'&','&lt;':'<','&gt;':'>','&quot;':'"','&#x27;':"'"};
-
-  /*--------------------------------------------------------------------------*/
-
-  /**
-   * Assigns own enumerable properties of source object(s) to the destination
-   * object. Subsequent sources will overwrite property assignments of previous
-   * sources. If a `callback` function is passed, it will be executed to produce
-   * the assigned values. The `callback` is bound to `thisArg` and invoked with
-   * two arguments; (objectValue, sourceValue).
-   *
-   * @static
-   * @memberOf _
-   * @type Function
-   * @alias extend
-   * @category Objects
-   * @param {Object} object The destination object.
-   * @param {Object} [source1, source2, ...] The source objects.
-   * @param {Function} [callback] The function to customize assigning values.
-   * @param {Mixed} [thisArg] The `this` binding of `callback`.
-   * @returns {Object} Returns the destination object.
-   * @example
-   *
-   * _.assign({ 'name': 'moe' }, { 'age': 40 });
-   * // => { 'name': 'moe', 'age': 40 }
-   *
-   * var defaults = _.partialRight(_.assign, function(a, b) {
-   *   return typeof a == 'undefined' ? b : a;
-   * });
-   *
-   * var food = { 'name': 'apple' };
-   * defaults(food, { 'name': 'banana', 'type': 'fruit' });
-   * // => { 'name': 'apple', 'type': 'fruit' }
-   */
-  var assign = createIterator(defaultsIteratorOptions, {
-    'top':
-      defaultsIteratorOptions.top.replace(';',
-        ';\n' +
-        "if (argsLength > 3 && typeof args[argsLength - 2] == 'function') {\n" +
-        '  var callback = lodash.createCallback(args[--argsLength - 1], args[argsLength--], 2);\n' +
-        "} else if (argsLength > 2 && typeof args[argsLength - 1] == 'function') {\n" +
-        '  callback = args[--argsLength];\n' +
-        '}'
-      ),
-    'loop': 'result[index] = callback ? callback(result[index], iterable[index]) : iterable[index]'
-  });
-
-  /**
-   * Creates a clone of `value`. If `deep` is `true`, nested objects will also
-   * be cloned, otherwise they will be assigned by reference. If a `callback`
-   * function is passed, it will be executed to produce the cloned values. If
-   * `callback` returns `undefined`, cloning will be handled by the method instead.
-   * The `callback` is bound to `thisArg` and invoked with one argument; (value).
-   *
-   * @static
-   * @memberOf _
-   * @category Objects
-   * @param {Mixed} value The value to clone.
-   * @param {Boolean} [deep=false] A flag to indicate a deep clone.
-   * @param {Function} [callback] The function to customize cloning values.
-   * @param {Mixed} [thisArg] The `this` binding of `callback`.
-   * @param- {Array} [stackA=[]] Tracks traversed source objects.
-   * @param- {Array} [stackB=[]] Associates clones with source counterparts.
-   * @returns {Mixed} Returns the cloned `value`.
-   * @example
-   *
-   * var stooges = [
-   *   { 'name': 'moe', 'age': 40 },
-   *   { 'name': 'larry', 'age': 50 }
-   * ];
-   *
-   * var shallow = _.clone(stooges);
-   * shallow[0] === stooges[0];
-   * // => true
-   *
-   * var deep = _.clone(stooges, true);
-   * deep[0] === stooges[0];
-   * // => false
-   *
-   * _.mixin({
-   *   'clone': _.partialRight(_.clone, function(value) {
-   *     return _.isElement(value) ? value.cloneNode(false) : undefined;
-   *   })
-   * });
-   *
-   * var clone = _.clone(document.body);
-   * clone.childNodes.length;
-   * // => 0
-   */
-  function clone(value, deep, callback, thisArg, stackA, stackB) {
-    var result = value;
-
-    // allows working with "Collections" methods without using their `callback`
-    // argument, `index|key`, for this method's `callback`
-    if (typeof deep == 'function') {
-      thisArg = callback;
-      callback = deep;
-      deep = false;
-    }
-    if (typeof callback == 'function') {
-      callback = (typeof thisArg == 'undefined')
-        ? callback
-        : lodash.createCallback(callback, thisArg, 1);
-
-      result = callback(result);
-      if (typeof result != 'undefined') {
-        return result;
-      }
-      result = value;
-    }
-    // inspect [[Class]]
-    var isObj = isObject(result);
-    if (isObj) {
-      var className = toString.call(result);
-      if (!cloneableClasses[className] || (!support.nodeClass && isNode(result))) {
-        return result;
-      }
-      var isArr = isArray(result);
-    }
-    // shallow clone
-    if (!isObj || !deep) {
-      return isObj
-        ? (isArr ? slice(result) : assign({}, result))
-        : result;
-    }
-    var ctor = ctorByClass[className];
-    switch (className) {
-      case boolClass:
-      case dateClass:
-        return new ctor(+result);
-
-      case numberClass:
-      case stringClass:
-        return new ctor(result);
-
-      case regexpClass:
-        return ctor(result.source, reFlags.exec(result));
-    }
-    // check for circular references and return corresponding clone
-    stackA || (stackA = []);
-    stackB || (stackB = []);
-
-    var length = stackA.length;
-    while (length--) {
-      if (stackA[length] == value) {
-        return stackB[length];
-      }
-    }
-    // init cloned object
-    result = isArr ? ctor(result.length) : {};
-
-    // add array properties assigned by `RegExp#exec`
-    if (isArr) {
-      if (hasOwnProperty.call(value, 'index')) {
-        result.index = value.index;
-      }
-      if (hasOwnProperty.call(value, 'input')) {
-        result.input = value.input;
-      }
-    }
-    // add the source value to the stack of traversed objects
-    // and associate it with its clone
-    stackA.push(value);
-    stackB.push(result);
-
-    // recursively populate clone (susceptible to call stack limits)
-    (isArr ? forEach : forOwn)(value, function(objValue, key) {
-      result[key] = clone(objValue, deep, callback, undefined, stackA, stackB);
-    });
-
-    return result;
   }
 
   /**
@@ -4497,6 +4259,288 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
   var forOwn = createIterator(eachIteratorOptions, forOwnIteratorOptions);
 
   /**
+   * Checks if `value` is an array.
+   *
+   * @static
+   * @memberOf _
+   * @category Objects
+   * @param {Mixed} value The value to check.
+   * @returns {Boolean} Returns `true`, if the `value` is an array, else `false`.
+   * @example
+   *
+   * (function() { return _.isArray(arguments); })();
+   * // => false
+   *
+   * _.isArray([1, 2, 3]);
+   * // => true
+   */
+  var isArray = nativeIsArray || function(value) {
+    // `instanceof` may cause a memory leak in IE 7 if `value` is a host object
+    // http://ajaxian.com/archives/working-aroung-the-instanceof-memory-leak
+    return (argsAreObjects && value instanceof Array) || toString.call(value) == arrayClass;
+  };
+
+  /**
+   * Creates an array composed of the own enumerable property names of `object`.
+   *
+   * @static
+   * @memberOf _
+   * @category Objects
+   * @param {Object} object The object to inspect.
+   * @returns {Array} Returns a new array of property names.
+   * @example
+   *
+   * _.keys({ 'one': 1, 'two': 2, 'three': 3 });
+   * // => ['one', 'two', 'three'] (order is not guaranteed)
+   */
+  var keys = !nativeKeys ? shimKeys : function(object) {
+    if (!isObject(object)) {
+      return [];
+    }
+    if ((hasEnumPrototype && typeof object == 'function') ||
+        (nonEnumArgs && object.length && isArguments(object))) {
+      return shimKeys(object);
+    }
+    return nativeKeys(object);
+  };
+
+  /**
+   * A fallback implementation of `isPlainObject` that checks if a given `value`
+   * is an object created by the `Object` constructor, assuming objects created
+   * by the `Object` constructor have no inherited enumerable properties and that
+   * there are no `Object.prototype` extensions.
+   *
+   * @private
+   * @param {Mixed} value The value to check.
+   * @returns {Boolean} Returns `true`, if `value` is a plain object, else `false`.
+   */
+  function shimIsPlainObject(value) {
+    // avoid non-objects and false positives for `arguments` objects
+    var result = false;
+    if (!(value && typeof value == 'object') || isArguments(value)) {
+      return result;
+    }
+    // check that the constructor is `Object` (i.e. `Object instanceof Object`)
+    var ctor = value.constructor;
+    if ((!isFunction(ctor) && (!noNodeClass || !isNode(value))) || ctor instanceof ctor) {
+      // In most environments an object's own properties are iterated before
+      // its inherited properties. If the last iterated property is an object's
+      // own property then there are no inherited enumerable properties.
+      forIn(value, function(value, key) {
+        result = key;
+      });
+      return result === false || hasOwnProperty.call(value, result);
+    }
+    return result;
+  }
+
+  /**
+   * A fallback implementation of `Object.keys` that produces an array of the
+   * given object's own enumerable property names.
+   *
+   * @private
+   * @param {Object} object The object to inspect.
+   * @returns {Array} Returns a new array of property names.
+   */
+  function shimKeys(object) {
+    var result = [];
+    forOwn(object, function(value, key) {
+      result.push(key);
+    });
+    return result;
+  }
+
+  /**
+   * Used to convert characters to HTML entities:
+   *
+   * Though the `>` character is escaped for symmetry, characters like `>` and `/`
+   * don't require escaping in HTML and have no special meaning unless they're part
+   * of a tag or an unquoted attribute value.
+   * http://mathiasbynens.be/notes/ambiguous-ampersands (under "semi-related fun fact")
+   */
+  var htmlEscapes = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  };
+
+  /** Used to convert HTML entities to characters */
+  var htmlUnescapes = {'&amp;':'&','&lt;':'<','&gt;':'>','&quot;':'"','&#x27;':"'"};
+
+  /*--------------------------------------------------------------------------*/
+
+  /**
+   * Assigns own enumerable properties of source object(s) to the destination
+   * object. Subsequent sources will overwrite propery assignments of previous
+   * sources. If a `callback` function is passed, it will be executed to produce
+   * the assigned values. The `callback` is bound to `thisArg` and invoked with
+   * two arguments; (objectValue, sourceValue).
+   *
+   * @static
+   * @memberOf _
+   * @type Function
+   * @alias extend
+   * @category Objects
+   * @param {Object} object The destination object.
+   * @param {Object} [source1, source2, ...] The source objects.
+   * @param {Function} [callback] The function to customize assigning values.
+   * @param {Mixed} [thisArg] The `this` binding of `callback`.
+   * @returns {Object} Returns the destination object.
+   * @example
+   *
+   * _.assign({ 'name': 'moe' }, { 'age': 40 });
+   * // => { 'name': 'moe', 'age': 40 }
+   *
+   * var defaults = _.partialRight(_.assign, function(a, b) {
+   *   return typeof a == 'undefined' ? b : a;
+   * });
+   *
+   * var food = { 'name': 'apple' };
+   * defaults(food, { 'name': 'banana', 'type': 'fruit' });
+   * // => { 'name': 'apple', 'type': 'fruit' }
+   */
+  var assign = createIterator(defaultsIteratorOptions, {
+    'top':
+      defaultsIteratorOptions.top.replace(';',
+        ';\n' +
+        "if (argsLength > 3 && typeof args[argsLength - 2] == 'function') {\n" +
+        '  var callback = createCallback(args[--argsLength - 1], args[argsLength--], 2);\n' +
+        "} else if (argsLength > 2 && typeof args[argsLength - 1] == 'function') {\n" +
+        '  callback = args[--argsLength];\n' +
+        '}'
+      ),
+    'loop': 'result[index] = callback ? callback(result[index], iterable[index]) : iterable[index]'
+  });
+
+  /**
+   * Creates a clone of `value`. If `deep` is `true`, nested objects will also
+   * be cloned, otherwise they will be assigned by reference. If a `callback`
+   * function is passed, it will be executed to produce the cloned values. If
+   * `callback` returns `undefined`, cloning will be handled by the method instead.
+   * The `callback` is bound to `thisArg` and invoked with one argument; (value).
+   *
+   * @static
+   * @memberOf _
+   * @category Objects
+   * @param {Mixed} value The value to clone.
+   * @param {Boolean} [deep=false] A flag to indicate a deep clone.
+   * @param {Function} [callback] The function to customize cloning values.
+   * @param {Mixed} [thisArg] The `this` binding of `callback`.
+   * @param- {Array} [stackA=[]] Internally used to track traversed source objects.
+   * @param- {Array} [stackB=[]] Internally used to associate clones with source counterparts.
+   * @returns {Mixed} Returns the cloned `value`.
+   * @example
+   *
+   * var stooges = [
+   *   { 'name': 'moe', 'age': 40 },
+   *   { 'name': 'larry', 'age': 50 }
+   * ];
+   *
+   * var shallow = _.clone(stooges);
+   * shallow[0] === stooges[0];
+   * // => true
+   *
+   * var deep = _.clone(stooges, true);
+   * deep[0] === stooges[0];
+   * // => false
+   *
+   * _.mixin({
+   *   'clone': _.partialRight(_.clone, function(value) {
+   *     return _.isElement(value) ? value.cloneNode(false) : undefined;
+   *   })
+   * });
+   *
+   * var clone = _.clone(document.body);
+   * clone.childNodes.length;
+   * // => 0
+   */
+  function clone(value, deep, callback, thisArg, stackA, stackB) {
+    var result = value;
+
+    // allows working with "Collections" methods without using their `callback`
+    // argument, `index|key`, for this method's `callback`
+    if (typeof deep == 'function') {
+      thisArg = callback;
+      callback = deep;
+      deep = false;
+    }
+    if (typeof callback == 'function') {
+      callback = typeof thisArg == 'undefined' ? callback : createCallback(callback, thisArg, 1);
+      result = callback(result);
+
+      var done = typeof result != 'undefined';
+      if (!done) {
+        result = value;
+      }
+    }
+    // inspect [[Class]]
+    var isObj = isObject(result);
+    if (isObj) {
+      var className = toString.call(result);
+      if (!cloneableClasses[className] || (noNodeClass && isNode(result))) {
+        return result;
+      }
+      var isArr = isArray(result);
+    }
+    // shallow clone
+    if (!isObj || !deep) {
+      return isObj && !done
+        ? (isArr ? slice(result) : assign({}, result))
+        : result;
+    }
+    var ctor = ctorByClass[className];
+    switch (className) {
+      case boolClass:
+      case dateClass:
+        return done ? result : new ctor(+result);
+
+      case numberClass:
+      case stringClass:
+        return done ? result : new ctor(result);
+
+      case regexpClass:
+        return done ? result : ctor(result.source, reFlags.exec(result));
+    }
+    // check for circular references and return corresponding clone
+    stackA || (stackA = []);
+    stackB || (stackB = []);
+
+    var length = stackA.length;
+    while (length--) {
+      if (stackA[length] == value) {
+        return stackB[length];
+      }
+    }
+    // init cloned object
+    if (!done) {
+      result = isArr ? ctor(result.length) : {};
+
+      // add array properties assigned by `RegExp#exec`
+      if (isArr) {
+        if (hasOwnProperty.call(value, 'index')) {
+          result.index = value.index;
+        }
+        if (hasOwnProperty.call(value, 'input')) {
+          result.input = value.input;
+        }
+      }
+    }
+    // add the source value to the stack of traversed objects
+    // and associate it with its clone
+    stackA.push(value);
+    stackB.push(result);
+
+    // recursively populate clone (susceptible to call stack limits)
+    (isArr ? forEach : forOwn)(done ? result : value, function(objValue, key) {
+      result[key] = clone(objValue, deep, callback, undefined, stackA, stackB);
+    });
+
+    return result;
+  }
+
+  /**
    * Performs a deep comparison between two values to determine if they are
    * equivalent to each other. If `callback` is passed, it will be executed to
    * compare values. If `callback` returns `undefined`, comparisons will be handled
@@ -4510,9 +4554,9 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    * @param {Mixed} b The other value to compare.
    * @param {Function} [callback] The function to customize comparing values.
    * @param {Mixed} [thisArg] The `this` binding of `callback`.
-   * @param- {Array} [stackA=[]] Tracks traversed `a` objects.
-   * @param- {Array} [stackB=[]] Tracks traversed `b` objects.
-   * @returns {Boolean} Returns `true`, if the values are equivalent, else `false`.
+   * @param- {Object} [stackA=[]] Internally used track traversed `a` objects.
+   * @param- {Object} [stackB=[]] Internally used track traversed `b` objects.
+   * @returns {Boolean} Returns `true`, if the values are equvalent, else `false`.
    * @example
    *
    * var moe = { 'name': 'moe', 'age': 40 };
@@ -4540,10 +4584,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
     // used to indicate that when comparing objects, `a` has at least the properties of `b`
     var whereIndicator = callback === indicatorObject;
     if (callback && !whereIndicator) {
-      callback = (typeof thisArg == 'undefined')
-        ? callback
-        : lodash.createCallback(callback, thisArg, 2);
-
+      callback = typeof thisArg == 'undefined' ? callback : createCallback(callback, thisArg, 2);
       var result = callback(a, b);
       if (typeof result != 'undefined') {
         return !!result;
@@ -4590,7 +4631,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
 
       case numberClass:
         // treat `NaN` vs. `NaN` as equal
-        return (a != +a)
+        return a != +a
           ? b != +b
           // but treat `+0` vs. `-0` as not equal
           : (a == 0 ? (1 / a == 1 / b) : a == +b);
@@ -4599,21 +4640,21 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
       case stringClass:
         // coerce regexes to strings (http://es5.github.com/#x15.10.6.4)
         // treat string primitives and their corresponding object instances as equal
-        return a == String(b);
+        return a == b + '';
     }
     var isArr = className == arrayClass;
     if (!isArr) {
       // unwrap any `lodash` wrapped values
-      if (hasOwnProperty.call(a, '__wrapped__ ') || hasOwnProperty.call(b, '__wrapped__')) {
+      if (a.__wrapped__ || b.__wrapped__) {
         return isEqual(a.__wrapped__ || a, b.__wrapped__ || b, callback, thisArg, stackA, stackB);
       }
       // exit for functions and DOM nodes
-      if (className != objectClass || (!support.nodeClass && (isNode(a) || isNode(b)))) {
+      if (className != objectClass || (noNodeClass && (isNode(a) || isNode(b)))) {
         return false;
       }
       // in older versions of Opera, `arguments` objects have `Array` constructors
-      var ctorA = !support.argsObject && isArguments(a) ? Object : a.constructor,
-          ctorB = !support.argsObject && isArguments(b) ? Object : b.constructor;
+      var ctorA = !argsAreObjects && isArguments(a) ? Object : a.constructor,
+          ctorB = !argsAreObjects && isArguments(b) ? Object : b.constructor;
 
       // non `Object` object instances with different constructors are not equal
       if (ctorA != ctorB && !(
@@ -4799,7 +4840,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
         }
       }
     } else {
-      callback = lodash.createCallback(callback, thisArg);
+      callback = createCallback(callback, thisArg);
       forIn(object, function(value, key, object) {
         if (callback(value, key, object)) {
           result[key] = value;
@@ -4820,7 +4861,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    * callback will return the property value of the given element.
    *
    * If an object is passed for `callback`, the created "_.where" style callback
-   * will return `true` for elements that have the properties of the given object,
+   * will return `true` for elements that have the propeties of the given object,
    * else `false`.
    *
    * @static
@@ -4832,49 +4873,39 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    *  iteration. If a property name or object is passed, it will be used to create
    *  a "_.pluck" or "_.where" style callback, respectively.
    * @param {Mixed} [thisArg] The `this` binding of `callback`.
-   * @returns {Mixed} Returns the found element, else `undefined`.
+   * @returns {Mixed} Returns the element that passed the callback check,
+   *  else `undefined`.
    * @example
    *
-   * _.find([1, 2, 3, 4], function(num) { return num % 2 == 0; });
+   * var even = _.find([1, 2, 3, 4, 5, 6], function(num) { return num % 2 == 0; });
    * // => 2
    *
    * var food = [
    *   { 'name': 'apple',  'organic': false, 'type': 'fruit' },
    *   { 'name': 'banana', 'organic': true,  'type': 'fruit' },
-   *   { 'name': 'beet',   'organic': false, 'type': 'vegetable' }
+   *   { 'name': 'beet',   'organic': false, 'type': 'vegetable' },
+   *   { 'name': 'carrot', 'organic': true,  'type': 'vegetable' }
    * ];
    *
    * // using "_.where" callback shorthand
-   * _.find(food, { 'type': 'vegetable' });
+   * var veggie = _.find(food, { 'type': 'vegetable' });
    * // => { 'name': 'beet', 'organic': false, 'type': 'vegetable' }
    *
    * // using "_.pluck" callback shorthand
-   * _.find(food, 'organic');
+   * var healthy = _.find(food, 'organic');
    * // => { 'name': 'banana', 'organic': true, 'type': 'fruit' }
    */
   function find(collection, callback, thisArg) {
-    callback = lodash.createCallback(callback, thisArg);
+    var result;
+    callback = createCallback(callback, thisArg);
 
-    if (isArray(collection)) {
-      var index = -1,
-          length = collection.length;
-
-      while (++index < length) {
-        var value = collection[index];
-        if (callback(value, index, collection)) {
-          return value;
-        }
+    forEach(collection, function(value, index, collection) {
+      if (callback(value, index, collection)) {
+        result = value;
+        return false;
       }
-    } else {
-      var result;
-      each(collection, function(value, index, collection) {
-        if (callback(value, index, collection)) {
-          result = value;
-          return false;
-        }
-      });
-      return result;
-    }
+    });
+    return result;
   }
 
   /**
@@ -4970,7 +5001,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    * callback will return the property value of the given element.
    *
    * If an object is passed for `callback`, the created "_.where" style callback
-   * will return `true` for elements that have the properties of the given object,
+   * will return `true` for elements that have the propeties of the given object,
    * else `false`.
    *
    * @static
@@ -5012,12 +5043,12 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
         high = array ? array.length : low;
 
     // explicitly reference `identity` for better inlining in Firefox
-    callback = callback ? lodash.createCallback(callback, thisArg, 1) : identity;
+    callback = callback ? createCallback(callback, thisArg, 1) : identity;
     value = callback(value);
 
     while (low < high) {
       var mid = (low + high) >>> 1;
-      (callback(array[mid]) < value)
+      callback(array[mid]) < value
         ? low = mid + 1
         : high = mid;
     }
@@ -5042,7 +5073,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
   function without(array) {
     var index = -1,
         length = array ? array.length : 0,
-        contains = cachedContains(arguments, 1, 30),
+        contains = cachedContains(arguments, 1),
         result = [];
 
     while (++index < length) {
@@ -5055,97 +5086,9 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
   }
 
   /*--------------------------------------------------------------------------*/
-
-  /**
-   * Produces a callback bound to an optional `thisArg`. If `func` is a property
-   * name, the created callback will return the property value for a given element.
-   * If `func` is an object, the created callback will return `true` for elements
-   * that contain the equivalent object properties, otherwise it will return `false`.
-   *
-   * Note: All Lo-Dash methods, that accept a `callback` argument, use `_.createCallback`.
-   *
-   * @static
-   * @memberOf _
-   * @category Functions
-   * @param {Mixed} [func=identity] The value to convert to a callback.
-   * @param {Mixed} [thisArg] The `this` binding of the created callback.
-   * @param {Number} [argCount=3] The number of arguments the callback accepts.
-   * @returns {Function} Returns a callback function.
-   * @example
-   *
-   * var stooges = [
-   *   { 'name': 'moe', 'age': 40 },
-   *   { 'name': 'larry', 'age': 50 }
-   * ];
-   *
-   * // wrap to create custom callback shorthands
-   * _.createCallback = _.wrap(_.createCallback, function(func, callback, thisArg) {
-   *   var match = /^(.+?)__([gl]t)(.+)$/.exec(callback);
-   *   return !match ? func(callback, thisArg) : function(object) {
-   *     return match[2] == 'gt' ? object[match[1]] > match[3] : object[match[1]] < match[3];
-   *   };
-   * });
-   *
-   * _.filter(stooges, 'age__gt45');
-   * // => [{ 'name': 'larry', 'age': 50 }]
-   *
-   * // create mixins with support for "_.pluck" and "_.where" callback shorthands
-   * _.mixin({
-   *   'toLookup': function(collection, callback, thisArg) {
-   *     callback = _.createCallback(callback, thisArg);
-   *     return _.reduce(collection, function(result, value, index, collection) {
-   *       return (result[callback(value, index, collection)] = value, result);
-   *     }, {});
-   *   }
-   * });
-   *
-   * _.toLookup(stooges, 'name');
-   * // => { 'moe': { 'name': 'moe', 'age': 40 }, 'larry': { 'name': 'larry', 'age': 50 } }
-   */
-  function createCallback(func, thisArg, argCount) {
-    if (func == null) {
-      return identity;
-    }
-    var type = typeof func;
-    if (type != 'function') {
-      if (type != 'object') {
-        return function(object) {
-          return object[func];
-        };
-      }
-      var props = keys(func);
-      return function(object) {
-        var length = props.length,
-            result = false;
-        while (length--) {
-          if (!(result = isEqual(object[props[length]], func[props[length]], indicatorObject))) {
-            break;
-          }
-        }
-        return result;
-      };
-    }
-    if (typeof thisArg != 'undefined') {
-      if (argCount === 1) {
-        return function(value) {
-          return func.call(thisArg, value);
-        };
-      }
-      if (argCount === 2) {
-        return function(a, b) {
-          return func.call(thisArg, a, b);
-        };
-      }
-      if (argCount === 4) {
-        return function(accumulator, value, index, collection) {
-          return func.call(thisArg, accumulator, value, index, collection);
-        };
-      }
-      return function(value, index, collection) {
-        return func.call(thisArg, value, index, collection);
-      };
-    }
-    return func;
+  // use `setImmediate` if it's available in Node.js
+  if (isV8 && freeModule && typeof setImmediate == 'function') {
+    defer = bind(setImmediate, window);
   }
 
   /*--------------------------------------------------------------------------*/
@@ -5170,18 +5113,49 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
 
   /*--------------------------------------------------------------------------*/
 
+  /**
+   * Produces the `toString` result of the wrapped value.
+   *
+   * @name toString
+   * @memberOf _
+   * @category Chaining
+   * @returns {String} Returns the string result.
+   * @example
+   *
+   * _([1, 2, 3]).toString();
+   * // => '1,2,3'
+   */
+  function wrapperToString() {
+    return this.__wrapped__ + '';
+  }
+
+  /**
+   * Extracts the wrapped value.
+   *
+   * @name valueOf
+   * @memberOf _
+   * @alias value
+   * @category Chaining
+   * @returns {Mixed} Returns the wrapped value.
+   * @example
+   *
+   * _([1, 2, 3]).valueOf();
+   * // => [1, 2, 3]
+   */
+  function wrapperValueOf() {
+    return this.__wrapped__;
+  }
+
+  /*--------------------------------------------------------------------------*/
   lodash.assign = assign;
-  lodash.createCallback = createCallback;
   lodash.forEach = forEach;
   lodash.forIn = forIn;
   lodash.forOwn = forOwn;
   lodash.keys = keys;
   lodash.pick = pick;
   lodash.without = without;
-
   lodash.each = forEach;
   lodash.extend = assign;
-
   /*--------------------------------------------------------------------------*/
 
   // add functions that return unwrapped values when chaining
@@ -5196,7 +5170,6 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
   lodash.isObject = isObject;
   lodash.isString = isString;
   lodash.sortedIndex = sortedIndex;
-
   lodash.detect = find;
 
   /*--------------------------------------------------------------------------*/
@@ -5208,15 +5181,15 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    * @memberOf _
    * @type String
    */
-  lodash.VERSION = '1.1.0';
+  lodash.VERSION = '1.0.1';
 
   /*--------------------------------------------------------------------------*/
 
-  if (freeExports && !freeExports.nodeType) {
-
+  if (freeExports) {
+    
       freeExports._ = lodash;
   }
-
+  
 }(this));
 
 });
@@ -5228,13 +5201,7 @@ require.register("particle/dist/collector.js", function(exports, require, module
     __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
     __slice = [].slice;
 
-  if (typeof window !== "undefined" && window !== null) {
-    EventEmitter = require('emitter');
-  } else {
-    EventEmitter = require('events').EventEmitter;
-  }
-
-  _ref = require('./util'), objInclude = _ref.objInclude, find = _ref.find, _ = _ref._;
+  _ref = require('./util'), objInclude = _ref.objInclude, find = _ref.find, _ = _ref._, EventEmitter = _ref.EventEmitter;
 
   normalizePayload = require('./normalizePayload');
 
@@ -5588,16 +5555,19 @@ require.register("particle/dist/normalizePayload.js", function(exports, require,
 require.register("particle/dist/util.js", function(exports, require, module){
 // Generated by CoffeeScript 1.6.2
 (function() {
-  var util, _;
+  var EventEmitter, util, _;
 
   if (typeof window !== "undefined" && window !== null) {
+    EventEmitter = require('emitter');
     _ = require('./lodash')._;
   } else {
+    EventEmitter = require('events').EventEmitter;
     _ = require('lodash');
   }
 
   module.exports = util = {
     _: _,
+    EventEmitter: EventEmitter,
     getType: function(obj) {
       return Object.prototype.toString.call(obj).slice(8, -1);
     },

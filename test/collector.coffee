@@ -60,3 +60,35 @@ describe 'Collector', ->
         done() if _.isEqual op, expected
 
     @collector.register()
+
+  it 'should filter events', (done) ->
+
+    @collector = new Collector
+      identity:
+        sessionId: 'foo'
+
+      # When I register a new client
+      onRegister: mockServer [
+          operation: 'set'
+          id: 5
+          path: 'address.state'
+          data: 'Lake Maylie'
+        ]
+
+    # I should recieve a delta event
+    @collector.watch 'address.state', (data, event) =>
+      should.exist data
+      should.exist event
+      should.exist event.root, 'expected root'
+
+      event.root.should.eql 'users'
+
+      expected =
+        operation: 'set'
+        id: 5
+        path: 'address.state'
+        data: 'Lake Maylie'
+
+      done()
+
+    @collector.register()
