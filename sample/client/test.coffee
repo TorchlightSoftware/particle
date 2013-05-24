@@ -1,4 +1,4 @@
-require ['particle'], ({Collector}) ->
+require ['particle', 'rivets.min', 'rivetsConfig'], ({Collector}, rivets, rivetsConfig) ->
 
   renderData = (data) ->
     output = ''
@@ -11,9 +11,17 @@ require ['particle'], ({Collector}) ->
     identity:
       sessionId: 'foo'
 
+  # bind manual UI updates
   collector.on 'data', (data, event) ->
     #console.log 'got data:', data
     $('#content').html renderData data.users[0]
+
+  # bind rivets UI updates
+  rivetsConfig()
+  collector.ready ->
+    data = collector.data
+    console.log 'binding with data:', data
+    rivets.bind $('#rivets'), data
 
   collector.register (err) ->
     if err
