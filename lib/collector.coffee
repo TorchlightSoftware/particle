@@ -13,7 +13,13 @@ class Collector extends EventEmitter
     @identity = options.identity or {}
     @network = options.network or {}
     @debug = options.onDebug or ->
+    @onData = options.onData or ->
     @error = options.onError or console.error
+
+    super {
+      wildcard: true
+      maxListeners: Infinity
+    }
 
     # on register, call user provided register, or connect via websockets
     @onRegister = options.onRegister or (identity, receiver, err) =>
@@ -24,9 +30,19 @@ class Collector extends EventEmitter
       @debug 'ready!'
       @status = 'ready'
 
-    @on 'data', (args...) ->
+    @on 'data', (data, event) ->
       @debug 'Sending new data notification!'
-      options.onData args... if options.onData
+
+      # normalize events and emit specific path changes
+      if event.oplist
+        for op in event.oplist
+          eventName = "#{event.root}.#{op.path}"
+          normEvent = _.merge({}, event, op)
+          delete normEvent.oplist
+          @emit eventName, data, normEvent
+
+      # respond to constructor based listener
+      @onData data, event
 
   register: (done) ->
     done or= ->

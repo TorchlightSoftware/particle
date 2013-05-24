@@ -4,6 +4,7 @@ should = require 'should'
 mockServer = require '../sample/mockServer'
 _ = require 'lodash'
 {getType} = require '../lib/util'
+logger = require './helpers/logger'
 
 describe 'Collector', ->
 
@@ -76,14 +77,44 @@ describe 'Collector', ->
         ]
 
     # I should recieve a delta event
-    @collector.watch 'address.state', (data, event) =>
+    @collector.on 'users.address.state', (data, event) =>
       should.exist data
       should.exist event
       should.exist event.root, 'expected root'
 
       event.root.should.eql 'users'
+      event.should.include
+        operation: 'set'
+        id: 5
+        path: 'address.state'
+        data: 'Lake Maylie'
 
-      expected =
+      done()
+
+    @collector.register()
+
+  it 'should use wildcard', (done) ->
+
+    @collector = new Collector
+      identity:
+        sessionId: 'foo'
+
+      # When I register a new client
+      onRegister: mockServer [
+          operation: 'set'
+          id: 5
+          path: 'address.state'
+          data: 'Lake Maylie'
+        ]
+
+    # I should recieve a delta event
+    @collector.on 'users.address.*', (data, event) =>
+      should.exist data
+      should.exist event
+      should.exist event.root, 'expected root'
+
+      event.root.should.eql 'users'
+      event.should.include
         operation: 'set'
         id: 5
         path: 'address.state'

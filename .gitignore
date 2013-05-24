@@ -4,4 +4,4 @@ npm-debug.log
 sample/public
 components
 build/*
-dist
+tmp

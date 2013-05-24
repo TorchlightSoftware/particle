@@ -1,8 +1,7 @@
 dist:
 	@mkdir dist
 	@coffee -o dist -c lib/collector.coffee lib/client.coffee lib/applyOp.coffee lib/normalizePayload.coffee lib/util.coffee lib/main.coffee
-	@node_modules/.bin/lodash exports=commonjs include=find,extend,clone,without,pick,keys -o dist/lodash.js
-	@cp node_modules/minimatch/minimatch.js dist/minimatch.js
+	@node_modules/.bin/lodash exports=commonjs include=find,extend,clone,without,pick,keys,merge -o dist/lodash.js
 
 build: components dist
 	@component build --standalone Particle

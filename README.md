@@ -45,7 +45,7 @@ collector = new particle.Collector
   onData: (data, event) =>
     console.log {data, event}
 
-collector.on 'data', (data, event) ->
+collector.on '**', (data, event) ->
 
 collector.register (err) ->
 ```
@@ -138,6 +138,38 @@ The collector's configuration is pretty minimal.  It doesn't need to know about 
 
 A hash object containing any data you wish to use for authentication and access control.  This could be a sessionId which you got from logging in via some out-of-band channel.  For instance, RPC or basic auth.  Particle does not handle authentication - this allows you to integrate it with your existing strategy.
 
+### Listening to Change Events
+
+We support path based listeners with wildcards courtesy of [EventEmitter2](https://github.com/hij1nx/EventEmitter2):
+
+```coffee-script
+collector.on 'users.**', (data, event) ->
+collector.on 'users.address.*', (data, event) ->
+```
+
+A single '*' will match one path section, a '**' will match multiple.  The data and event structures look like this:
+
+```
+data:
+  users: [
+    id: 5
+    email: 'graham@daventry.com'
+    address:
+      state: 'Lake Maylie'
+      zip: '07542'
+  ]
+
+event:
+  root: 'users'
+  timestamp: 'Fri May 24 2013 11:44:25 GMT-0700 (MST)'
+  operation: 'set'
+  id: 5
+  path: 'address.state'
+  data: 'Lake Maylie'
+```
+
+This should be sufficient for basic UI updates.  We are working on an API for proxy models which will make it easier to do data bindings with a library such as rivets.
+
 ### Register*
 
 This is a low level function which should not normally be used.  See the debugging section below for details.  In its absence the Collector will try to connect to its Stream using websockets (which is usually what you want).
@@ -160,7 +192,7 @@ The Collector starts out with a 'status' property set to 'waiting'.  It expects 
 
 Once it has received the manifest and data for all sources, its status will change to 'ready'.  In addition the collector has a function called 'ready' which takes a callback and will either call it immediately if the status is 'ready', or will call it once the status changes to 'ready'.  As of this writing, there are no other statuses defined.
 
-The function you provide to onData (or collector.on 'data') will receive (data, event).  Data is the entire data root, and event is a description of the change which occurred.  The event format follows the specification for a Delta (see Message Format in next section).  All events will look like Deltas, even inserts and the data retrieved by the payloads.
+The function you provide to collector.on '**' will receive (data, event).  Data is the entire data root, and event is a description of the change which occurred.  The event format follows the specification for a Delta (see Message Format in next section).
 
 ## The Particle Message Format
 

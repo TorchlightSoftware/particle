@@ -207,7 +207,25 @@ require.relative = function(parent) {
 
   return localRequire;
 };
+require.register("component-indexof/index.js", function(exports, require, module){
+
+var indexOf = [].indexOf;
+
+module.exports = function(arr, obj){
+  if (indexOf) return arr.indexOf(obj);
+  for (var i = 0; i < arr.length; ++i) {
+    if (arr[i] === obj) return i;
+  }
+  return -1;
+};
+});
 require.register("component-emitter/index.js", function(exports, require, module){
+
+/**
+ * Module dependencies.
+ */
+
+var index = require('indexof');
 
 /**
  * Expose `Emitter`.
@@ -312,7 +330,7 @@ Emitter.prototype.removeAllListeners = function(event, fn){
   }
 
   // remove specific handler
-  var i = callbacks.indexOf(fn._off || fn);
+  var i = index(callbacks, fn._off || fn);
   if (~i) callbacks.splice(i, 1);
   return this;
 };
@@ -365,18 +383,6 @@ Emitter.prototype.hasListeners = function(event){
   return !! this.listeners(event).length;
 };
 
-});
-require.register("component-indexof/index.js", function(exports, require, module){
-
-var indexOf = [].indexOf;
-
-module.exports = function(arr, obj){
-  if (indexOf) return arr.indexOf(obj);
-  for (var i = 0; i < arr.length; ++i) {
-    if (arr[i] === obj) return i;
-  }
-  return -1;
-};
 });
 require.register("LearnBoost-engine.io-protocol/lib/index.js", function(exports, require, module){
 /**
@@ -3997,7 +4003,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
 /**
  * @license
  * Lo-Dash 1.0.1 (Custom Build) <http://lodash.com/>
- * Build: `lodash exports="commonjs" include="find,extend,clone,without,pick,keys" -o dist/lodash.js`
+ * Build: `lodash exports="commonjs" include="find,extend,clone,without,pick,keys,merge" -o dist/lodash.js`
  * Copyright 2012-2013 The Dojo Foundation <http://dojofoundation.org/>
  * Based on Underscore.js 1.4.4 <http://underscorejs.org/>
  * Copyright 2009-2013 Jeremy Ashkenas, DocumentCloud Inc.
@@ -4082,6 +4088,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
   var ceil = Math.ceil,
       concat = arrayRef.concat,
       floor = Math.floor,
+      getPrototypeOf = reNative.test(getPrototypeOf = Object.getPrototypeOf) && getPrototypeOf,
       hasOwnProperty = objectRef.hasOwnProperty,
       push = arrayRef.push,
       toString = objectRef.toString;
@@ -4135,6 +4142,9 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    */
   var hasEnumPrototype;
 
+  /** Detect if own properties are iterated after inherited properties (IE < 9) */
+  var iteratesOwnLast;
+
   /** Detect if `arguments` object indexes are non-enumerable (Firefox < 4, IE < 9, PhantomJS, Safari < 5.1) */
   var nonEnumArgs = true;
 
@@ -4147,7 +4157,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
 
     hasDontEnumBug = !/valueOf/.test(props);
     hasEnumPrototype = ctor.propertyIsEnumerable('prototype');
-
+    iteratesOwnLast = props[0] != 'x';
   }(1));
 
   /** Detect if `arguments` objects are `Object` objects (all but Opera < 10.5) */
@@ -4874,6 +4884,16 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
     // check that the constructor is `Object` (i.e. `Object instanceof Object`)
     var ctor = value.constructor;
     if ((!isFunction(ctor) && (!noNodeClass || !isNode(value))) || ctor instanceof ctor) {
+      // IE < 9 iterates inherited properties before own properties. If the first
+      // iterated property is an object's own property then there are no inherited
+      // enumerable properties.
+      if (iteratesOwnLast) {
+        forIn(value, function(value, key, object) {
+          result = !hasOwnProperty.call(object, key);
+          return false;
+        });
+        return result === false;
+      }
       // In most environments an object's own properties are iterated before
       // its inherited properties. If the last iterated property is an object's
       // own property then there are no inherited enumerable properties.
@@ -5336,6 +5356,42 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
   }
 
   /**
+   * Checks if a given `value` is an object created by the `Object` constructor.
+   *
+   * @static
+   * @memberOf _
+   * @category Objects
+   * @param {Mixed} value The value to check.
+   * @returns {Boolean} Returns `true`, if `value` is a plain object, else `false`.
+   * @example
+   *
+   * function Stooge(name, age) {
+   *   this.name = name;
+   *   this.age = age;
+   * }
+   *
+   * _.isPlainObject(new Stooge('moe', 40));
+   * // => false
+   *
+   * _.isPlainObject([1, 2, 3]);
+   * // => false
+   *
+   * _.isPlainObject({ 'name': 'moe', 'age': 40 });
+   * // => true
+   */
+  var isPlainObject = !getPrototypeOf ? shimIsPlainObject : function(value) {
+    if (!(value && typeof value == 'object')) {
+      return false;
+    }
+    var valueOf = value.valueOf,
+        objProto = typeof valueOf == 'function' && (objProto = getPrototypeOf(valueOf)) && getPrototypeOf(objProto);
+
+    return objProto
+      ? value == objProto || (getPrototypeOf(value) == objProto && !isArguments(value))
+      : shimIsPlainObject(value);
+  };
+
+  /**
    * Checks if `value` is a string.
    *
    * @static
@@ -5350,6 +5406,143 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    */
   function isString(value) {
     return typeof value == 'string' || toString.call(value) == stringClass;
+  }
+
+  /**
+   * Recursively merges own enumerable properties of the source object(s), that
+   * don't resolve to `undefined`, into the destination object. Subsequent sources
+   * will overwrite propery assignments of previous sources. If a `callback` function
+   * is passed, it will be executed to produce the merged values of the destination
+   * and source properties. If `callback` returns `undefined`, merging will be
+   * handled by the method instead. The `callback` is bound to `thisArg` and
+   * invoked with two arguments; (objectValue, sourceValue).
+   *
+   * @static
+   * @memberOf _
+   * @category Objects
+   * @param {Object} object The destination object.
+   * @param {Object} [source1, source2, ...] The source objects.
+   * @param {Function} [callback] The function to customize merging properties.
+   * @param {Mixed} [thisArg] The `this` binding of `callback`.
+   * @param- {Object} [deepIndicator] Internally used to indicate that `stackA`
+   *  and `stackB` are arrays of traversed objects instead of source objects.
+   * @param- {Array} [stackA=[]] Internally used to track traversed source objects.
+   * @param- {Array} [stackB=[]] Internally used to associate values with their
+   *  source counterparts.
+   * @returns {Object} Returns the destination object.
+   * @example
+   *
+   * var names = {
+   *   'stooges': [
+   *     { 'name': 'moe' },
+   *     { 'name': 'larry' }
+   *   ]
+   * };
+   *
+   * var ages = {
+   *   'stooges': [
+   *     { 'age': 40 },
+   *     { 'age': 50 }
+   *   ]
+   * };
+   *
+   * _.merge(names, ages);
+   * // => { 'stooges': [{ 'name': 'moe', 'age': 40 }, { 'name': 'larry', 'age': 50 }] }
+   *
+   * var food = {
+   *   'fruits': ['apple'],
+   *   'vegetables': ['beet']
+   * };
+   *
+   * var otherFood = {
+   *   'fruits': ['banana'],
+   *   'vegetables': ['carrot']
+   * };
+   *
+   * _.merge(food, otherFood, function(a, b) {
+   *   return _.isArray(a) ? a.concat(b) : undefined;
+   * });
+   * // => { 'fruits': ['apple', 'banana'], 'vegetables': ['beet', 'carrot] }
+   */
+  function merge(object, source, deepIndicator) {
+    var args = arguments,
+        index = 0,
+        length = 2;
+
+    if (!isObject(object)) {
+      return object;
+    }
+    if (deepIndicator === indicatorObject) {
+      var callback = args[3],
+          stackA = args[4],
+          stackB = args[5];
+    } else {
+      stackA = [];
+      stackB = [];
+
+      // allows working with `_.reduce` and `_.reduceRight` without
+      // using their `callback` arguments, `index|key` and `collection`
+      if (typeof deepIndicator != 'number') {
+        length = args.length;
+      }
+      if (length > 3 && typeof args[length - 2] == 'function') {
+        callback = createCallback(args[--length - 1], args[length--], 2);
+      } else if (length > 2 && typeof args[length - 1] == 'function') {
+        callback = args[--length];
+      }
+    }
+    while (++index < length) {
+      (isArray(args[index]) ? forEach : forOwn)(args[index], function(source, key) {
+        var found,
+            isArr,
+            result = source,
+            value = object[key];
+
+        if (source && ((isArr = isArray(source)) || isPlainObject(source))) {
+          // avoid merging previously merged cyclic sources
+          var stackLength = stackA.length;
+          while (stackLength--) {
+            if ((found = stackA[stackLength] == source)) {
+              value = stackB[stackLength];
+              break;
+            }
+          }
+          if (!found) {
+            value = isArr
+              ? (isArray(value) ? value : [])
+              : (isPlainObject(value) ? value : {});
+
+            if (callback) {
+              result = callback(value, source);
+              if (typeof result != 'undefined') {
+                value = result;
+              }
+            }
+            // add `source` and associated `value` to the stack of traversed objects
+            stackA.push(source);
+            stackB.push(value);
+
+            // recursively merge objects and arrays (susceptible to call stack limits)
+            if (!callback) {
+              value = merge(value, source, indicatorObject, callback, stackA, stackB);
+            }
+          }
+        }
+        else {
+          if (callback) {
+            result = callback(value, source);
+            if (typeof result == 'undefined') {
+              result = source;
+            }
+          }
+          if (typeof result != 'undefined') {
+            value = result;
+          }
+        }
+        object[key] = value;
+      });
+    }
+    return object;
   }
 
   /**
@@ -5703,6 +5896,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
   lodash.forIn = forIn;
   lodash.forOwn = forOwn;
   lodash.keys = keys;
+  lodash.merge = merge;
   lodash.pick = pick;
   lodash.without = without;
   lodash.each = forEach;
@@ -5719,6 +5913,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
   lodash.isEqual = isEqual;
   lodash.isFunction = isFunction;
   lodash.isObject = isObject;
+  lodash.isPlainObject = isPlainObject;
   lodash.isString = isString;
   lodash.sortedIndex = sortedIndex;
   lodash.detect = find;
@@ -5749,8 +5944,7 @@ require.register("particle/dist/collector.js", function(exports, require, module
 (function() {
   var Client, Collector, EventEmitter, applyOp, find, normalizePayload, objInclude, _, _ref,
     __hasProp = {}.hasOwnProperty,
-    __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
-    __slice = [].slice;
+    __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
 
   _ref = require('./util'), objInclude = _ref.objInclude, find = _ref.find, _ = _ref._, EventEmitter = _ref.EventEmitter;
 
@@ -5772,7 +5966,12 @@ require.register("particle/dist/collector.js", function(exports, require, module
       this.identity = options.identity || {};
       this.network = options.network || {};
       this.debug = options.onDebug || function() {};
+      this.onData = options.onData || function() {};
       this.error = options.onError || console.error;
+      Collector.__super__.constructor.call(this, {
+        wildcard: true,
+        maxListeners: Infinity
+      });
       this.onRegister = options.onRegister || function(identity, receiver, err) {
         _this.client = Client(_this.network);
         return _this.client.register(identity, receiver, err);
@@ -5781,14 +5980,21 @@ require.register("particle/dist/collector.js", function(exports, require, module
         _this.debug('ready!');
         return _this.status = 'ready';
       });
-      this.on('data', function() {
-        var args;
+      this.on('data', function(data, event) {
+        var eventName, normEvent, op, _i, _len, _ref1;
 
-        args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
         this.debug('Sending new data notification!');
-        if (options.onData) {
-          return options.onData.apply(options, args);
+        if (event.oplist) {
+          _ref1 = event.oplist;
+          for (_i = 0, _len = _ref1.length; _i < _len; _i++) {
+            op = _ref1[_i];
+            eventName = "" + event.root + "." + op.path;
+            normEvent = _.merge({}, event, op);
+            delete normEvent.oplist;
+            this.emit(eventName, data, normEvent);
+          }
         }
+        return this.onData(data, event);
       });
     }
 
@@ -6198,6 +6404,7 @@ require.alias("wearefractal-protosock/dist/defaultClient.js", "particle/deps/pro
 require.alias("wearefractal-protosock/dist/Client.js", "particle/deps/protosock/dist/Client.js");
 require.alias("wearefractal-protosock/dist/main.js", "particle/deps/protosock/index.js");
 require.alias("component-emitter/index.js", "wearefractal-protosock/deps/emitter/index.js");
+require.alias("component-indexof/index.js", "component-emitter/deps/indexof/index.js");
 
 require.alias("LearnBoost-engine.io-client/lib/index.js", "wearefractal-protosock/deps/engine.io/lib/index.js");
 require.alias("LearnBoost-engine.io-client/lib/socket.js", "wearefractal-protosock/deps/engine.io/lib/socket.js");
@@ -6212,6 +6419,7 @@ require.alias("LearnBoost-engine.io-client/lib/transports/websocket.js", "wearef
 require.alias("LearnBoost-engine.io-client/lib/transports/flashsocket.js", "wearefractal-protosock/deps/engine.io/lib/transports/flashsocket.js");
 require.alias("LearnBoost-engine.io-client/lib/index.js", "wearefractal-protosock/deps/engine.io/index.js");
 require.alias("component-emitter/index.js", "LearnBoost-engine.io-client/deps/emitter/index.js");
+require.alias("component-indexof/index.js", "component-emitter/deps/indexof/index.js");
 
 require.alias("component-indexof/index.js", "LearnBoost-engine.io-client/deps/indexof/index.js");
 
