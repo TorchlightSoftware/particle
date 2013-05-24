@@ -2,9 +2,12 @@
   "name": "particle",
   "repo": "TorchlightSoftware/particle",
   "description": "A library for distributed state synchronization.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "keywords": ["client model", "model", "data", "distributed", "state", "synchronization"],
-  "dependencies": {"wearefractal/protosock": "*", "component/emitter": "*"},
+  "dependencies": {
+    "wearefractal/protosock": "*"
+  , "TorchlightSoftware/EventEmitter2": "*"
+  },
   "development": {},
   "license": "MIT",
   "main": "dist/main.js",

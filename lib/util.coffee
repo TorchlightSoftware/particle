@@ -1,16 +1,15 @@
 # select versions based on whether we're client or server
+{EventEmitter2} = require 'EventEmitter2'
 if window?
-  EventEmitter = require 'emitter'
   {_} = require './lodash'
 else
-  {EventEmitter} = require 'events'
   _ = require 'lodash'
 
 module.exports = util =
 
   # export the selected versions so the rest of the lib can access it
   _: _
-  EventEmitter: EventEmitter
+  EventEmitter: EventEmitter2
 
   getType: (obj) -> Object.prototype.toString.call(obj).slice 8, -1
 

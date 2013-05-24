@@ -11,6 +11,7 @@
       "coffee-script":"*",
       "lodash":"*",
       "jayschema":"git://github.com/bitmage/jayschema.git",
+      "EventEmitter2":"*",
       "protosock":"*"
    },
    "devDependencies":{
