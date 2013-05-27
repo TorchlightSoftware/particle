@@ -2,7 +2,7 @@
   "name": "particle",
   "repo": "TorchlightSoftware/particle",
   "description": "A library for distributed state synchronization.",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "keywords": ["client model", "model", "data", "distributed", "state", "synchronization"],
   "dependencies": {
     "wearefractal/protosock": "*"
