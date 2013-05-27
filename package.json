@@ -1,7 +1,7 @@
 {
    "name":"particle",
    "description":"A library for distributed state synchronization.",
-   "version":"0.0.3",
+   "version":"0.0.4",
    "homepage":"http://github.com/TorchlightSoftware/particle",
    "repository":"git://github.com/TorchlightSoftware/particle.git",
    "author":"Torchlight Software <info@torchlightsoftware.com>",
@@ -11,7 +11,7 @@
       "coffee-script":"*",
       "lodash":"*",
       "jayschema":"git://github.com/bitmage/jayschema.git",
-      "EventEmitter2":"*",
+      "eventemitter2":"*",
       "protosock":"*"
    },
    "devDependencies":{
