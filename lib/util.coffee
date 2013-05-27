@@ -1,8 +1,9 @@
 # select versions based on whether we're client or server
-{EventEmitter2} = require 'EventEmitter2'
 if window?
+  {EventEmitter2} = require 'EventEmitter2'
   {_} = require './lodash'
 else
+  {EventEmitter2} = require 'eventemitter2'
   _ = require 'lodash'
 
 module.exports = util =

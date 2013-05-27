@@ -2,11 +2,11 @@
 (function() {
   var EventEmitter2, util, _;
 
-  EventEmitter2 = require('EventEmitter2').EventEmitter2;
-
   if (typeof window !== "undefined" && window !== null) {
+    EventEmitter2 = require('EventEmitter2').EventEmitter2;
     _ = require('./lodash')._;
   } else {
+    EventEmitter2 = require('eventemitter2').EventEmitter2;
     _ = require('lodash');
   }
 
