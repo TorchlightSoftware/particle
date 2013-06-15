@@ -1,5 +1,13 @@
 {createClientWrapper} = require 'protosock'
 
+deserializeError = (err) ->
+  if err?.__type is 'Error'
+    newErr = new Error err.message
+    newErr.stack = err.stack
+    return newErr
+  else
+    return err
+
 queued = []
 
 client =
@@ -23,12 +31,12 @@ client =
   message: (socket, msg) ->
     switch msg.type
       when 'registered'
-        @onRegistered msg.err
+        @onRegistered deserializeError(msg.err)
       when 'data'
         @receive msg.name, msg.event
 
   error: (socket, err) ->
-    console.log 'client err:', {err}
+    console.log 'Particle client error:', {err: deserializeError(err)}
 
   ready: (done) ->
     if @status is 'ready'

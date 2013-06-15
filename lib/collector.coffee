@@ -7,7 +7,7 @@ class Collector extends EventEmitter
 
   # connect to server
   # {sessionId?}, {register, onDebug, onError}
-  constructor: (options) ->
+  constructor: (options={}) ->
     status = 'waiting'
     @data = {}
     @identity = options.identity or {}
@@ -49,7 +49,7 @@ class Collector extends EventEmitter
     @onRegister @identity, @receive.bind(@), (err) =>
       done err
       if err
-        @error {context: 'Error: Stream - Could not initiate data transfer.', error: err}
+        @error {context: 'Stream: Registration failed.', error: err}
       else
         @debug 'Registered with Stream.'
 

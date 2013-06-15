@@ -1,4 +1,16 @@
 {createServerWrapper} = require 'protosock'
+{getType} = require './util'
+
+serializeError = (err) ->
+  if getType(err) is 'Error'
+    return {
+      __type: 'Error'
+      message: err.message
+      stack: err.stack
+    }
+  else
+    return err
+
 
 connections = []
 
@@ -17,7 +29,7 @@ server =
   registered: (socket, err) ->
     socket.write
       type: 'registered'
-      err: err
+      err: serializeError(err)
 
   receive: (socket, name, event) ->
     socket.write
