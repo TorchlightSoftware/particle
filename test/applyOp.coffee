@@ -299,6 +299,32 @@ tests = [
       ]
     post: {users: [{id: 5, friends: ['Jim']}]}
   ,
+    description: 'pushAll should add to an array'
+    pre: {users: [{id: 5, friends: []}]}
+    op:
+      root: 'users'
+      timestamp: new Date
+      oplist: [
+        operation: 'pushAll'
+        id: 5
+        path: 'friends'
+        data: ['Jim']
+      ]
+    post: {users: [{id: 5, friends: ['Jim']}]}
+  ,
+    description: 'pushAll should create an array'
+    pre: {users: [{id: 5}]}
+    op:
+      root: 'users'
+      timestamp: new Date
+      oplist: [
+        operation: 'pushAll'
+        id: 5
+        path: 'friends'
+        data: ['Jim']
+      ]
+    post: {users: [{id: 5, friends: ['Jim']}]}
+  ,
     description: 'pop should remove an element from the end'
     pre: {users: [{id: 5, friends: ['Jane', 'Bob']}]}
     op:
