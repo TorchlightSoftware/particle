@@ -1,4 +1,4 @@
-removers = ['unset']
+{removers} = require './enums'
 {indexContaining, _} = require './util'
 
 module.exports = (dataRoot, {root, oplist}) =>

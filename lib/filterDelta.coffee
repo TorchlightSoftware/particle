@@ -1,5 +1,6 @@
 filterPayload = require './filterPayload'
 {empty, _} = require './util'
+{removers} = require './enums'
 
 validOp = (node, op) ->
   for location in op.path.split '.'
@@ -22,8 +23,8 @@ module.exports = (manifest, oplist) ->
     # handle full document update just like a payload
     if op.path is '.'
       result = _.clone op
-      result.data = filterPayload manifest, result.data
-      output.push result unless empty result.data
+      result.data = filterPayload manifest, result.data if result.data?
+      output.push result unless empty(result.data) and op.operation not in removers
 
     # otherwise it's valid if the path can be found in the manifest
     else

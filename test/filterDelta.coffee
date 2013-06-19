@@ -31,6 +31,11 @@ updateInvalidDocument =
   path: '.'
   data: {password: 'secret'}
 
+unsetDocument =
+  operation: 'unset'
+  id: 5
+  path: '.'
+
 tests = [
     description: 'should pass all items'
     pre: [updatePassword, updateEmail, updateTodo]
@@ -67,6 +72,11 @@ tests = [
     manifest:
       email: true
     post: []
+  ,
+    description: 'should allow unset document with no data'
+    pre: [unsetDocument]
+    manifest: true
+    post: [unsetDocument]
 ]
 
 describe 'filterDelta', ->
