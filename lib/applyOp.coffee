@@ -1,5 +1,5 @@
 {removers} = require './enums'
-{indexContaining, _} = require './util'
+{indexContaining, _, getType} = require './util'
 
 module.exports = (dataRoot, {root, oplist}) =>
 
@@ -69,7 +69,11 @@ module.exports = (dataRoot, {root, oplist}) =>
       when 'set'
         node[target] = data
       when 'unset'
-        delete node[target]
+        # array length won't be recalculated on delete
+        if getType(node) is 'Array' and getType(target) is 'Number'
+          node.splice target, 1
+        else
+          delete node[target]
       when 'inc'
         node[target] = (node[target] or 0) + (data or 1)
       when 'rename'
