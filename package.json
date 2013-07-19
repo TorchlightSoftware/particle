@@ -9,7 +9,9 @@
 
   "dependencies":{
     "coffee-script":"*",
+    "ale":"*",
     "lodash":"*",
+    "relcache":"*",
     "jayschema":"git://github.com/bitmage/jayschema.git",
     "eventemitter2":"*",
     "protosock":"*"
