@@ -10,13 +10,6 @@ todoUser =
     {id: 43, description: 'profit'}
   ]
 
-simpleList = [
-    'take out the trash'
-    '???'
-    'take over the world'
-    'profit'
-  ]
-
 tests = [
     description: 'should filter items not in the manifest'
     pre: todoUser
