@@ -13,9 +13,51 @@ describe 'convertDelta', ->
           name: 'Bob'
           _id: 5
         origin: 'payload'
+      keys: ['name']
       commands: [
         ['set', 'users._id', 5, {'users.name': 'Bob'}]
       ]
+    ,
+      description: 'should not insert without keys'
+      delta:
+        timestamp: new Date
+        namespace: 'test.users'
+        operation: 'set'
+        _id: 5
+        path: '.'
+        data:
+          name: 'Bob'
+          _id: 5
+        origin: 'payload'
+      commands: []
+    ,
+      description: 'keys should limit insert'
+      delta:
+        timestamp: new Date
+        namespace: 'test.users'
+        operation: 'set'
+        _id: 5
+        path: '.'
+        data:
+          name: 'Bob'
+          email: 'bob@foo.com'
+          _id: 5
+        origin: 'payload'
+      keys: ['name']
+      commands: [
+        ['set', 'users._id', 5, {'users.name': 'Bob'}]
+      ]
+    ,
+      description: 'keys should limit unset'
+      delta:
+        timestamp: new Date
+        namespace: 'test.users'
+        operation: 'unset'
+        _id: 5
+        path: 'name'
+        origin: 'delta'
+      keys: []
+      commands: []
     ,
       description: 'update field'
       delta:
@@ -26,6 +68,7 @@ describe 'convertDelta', ->
         path: 'name'
         data: 'Bobby'
         origin: 'delta'
+      keys: ['name']
       commands: [
         ['set', 'users._id', 5, {'users.name': 'Bobby'}]
       ]
@@ -38,6 +81,7 @@ describe 'convertDelta', ->
         _id: 5
         path: 'name'
         origin: 'delta'
+      keys: ['name']
       commands: [
         ['unset', 'users._id', 5, 'users.name']
       ]
@@ -90,7 +134,7 @@ describe 'convertDelta', ->
 
   for test in tests
     do (test) ->
-      {delta, mapping, commands, description} = test
+      {delta, keys, mapping, commands, description} = test
       it description, ->
-        result = convertDelta delta, mapping
+        result = convertDelta delta, keys, mapping
         result.should.eql commands

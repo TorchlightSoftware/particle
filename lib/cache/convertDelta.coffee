@@ -18,9 +18,14 @@ flattenKvps = (keypath, data, keymap) ->
   walk keypath, data
   return kvps
 
-module.exports = (event, mapping) ->
+# Intertwining responsibilites seem to be a major source of complexity here.
+# Perhaps this can be split out into a pipeline of transformations, rather than occuring all at once?
+# e.g: flattenKvps -> applyMapping -> splitLocalRemote -> filterKeys
+module.exports = (event, keys, mapping) ->
   collName = event.namespace?.split('.')[1]
   mapping ?= {}
+  keys ?= []
+  keys = _.map keys, (key)-> "#{collName}.#{key}"
 
   # extract the id path and create a relationship
   idKey = "#{collName}._id"
@@ -30,6 +35,7 @@ module.exports = (event, mapping) ->
   # helpers to determine whether many-to-many should be used
   getKey = (v, k) -> k
   isLocal = (k) -> k.match(new RegExp "^#{collName}\.")
+  isSelected = (k) -> k in keys
   isnot = (val) -> not val
 
   # map to unique key space in relcache
@@ -48,6 +54,7 @@ module.exports = (event, mapping) ->
     when 'set'
       kvps = flattenKvps event.path, event.data, keymap
       locals = _.pick kvps, _.compose(isLocal, getKey)
+      locals = _.pick locals, _.compose(isSelected, getKey)
       remotes = _.pick kvps, _.compose(isnot, isLocal, getKey)
 
       unless _.isEmpty locals
@@ -64,7 +71,9 @@ module.exports = (event, mapping) ->
 
       cmd = [op, idKey, event._id]
       cmd.push path if path
-      commands.push cmd
+      if not path? or not isLocal(path) or isSelected(path)
+        commands.push cmd
+
     else
       logger.red 'Particle Cache received unsupported operation:', event
 
