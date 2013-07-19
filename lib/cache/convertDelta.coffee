@@ -20,33 +20,54 @@ flattenKvps = (keypath, data, keymap) ->
 
 module.exports = (event, mapping) ->
   collName = event.namespace?.split('.')[1]
+  mapping ?= {}
 
   # extract the id path and create a relationship
   idKey = "#{collName}._id"
   idRel = {}
   idRel[idKey] = event._id
 
+  # helpers to determine whether many-to-many should be used
+  getKey = (v, k) -> k
+  isLocal = (k) -> k.match(new RegExp "^#{collName}\.")
+  isnot = (val) -> not val
+
   # map to unique key space in relcache
-  if mapping
-    keymap = (key) ->
-      mapping[key]
-  else
-    keymap = (key) ->
-      "#{collName}.#{key}"
+  keymap = (key) ->
+    usermapping = mapping[key]
+    if usermapping?
+      return usermapping
+    else
+      return "#{collName}.#{key}"
 
   # list of commands we will append to
   commands = []
 
   switch event.operation
+
     when 'set'
       kvps = flattenKvps event.path, event.data, keymap
-      commands.push ['set', idKey, event._id, kvps]
+      locals = _.pick kvps, _.compose(isLocal, getKey)
+      remotes = _.pick kvps, _.compose(isnot, isLocal, getKey)
+
+      unless _.isEmpty locals
+        commands.push ['set', idKey, event._id, locals]
+      unless _.isEmpty remotes
+        commands.push ['add', idKey, event._id, remotes]
+
     when 'unset'
-      cmd = ['unset', idKey, event._id]
-      cmd.push keymap(event.path) unless event.path is '.'
+      unless event.path is '.'
+        path = keymap(event.path)
+        op = if isLocal(path) then 'unset' else 'remove'
+      else
+        op = 'unset'
+
+      cmd = [op, idKey, event._id]
+      cmd.push path if path
       commands.push cmd
     else
       logger.red 'Particle Cache received unsupported operation:', event
+
     #when 'inc'
     #when 'rename'
     #when 'push'
