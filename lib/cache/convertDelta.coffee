@@ -13,7 +13,8 @@ flattenKvps = (keypath, data, keymap) ->
           subkeys = walk subpath, v
       else
         target = keymap(keypath)
-        kvps[target] = data
+        if target?
+          kvps[target] = data
 
   walk keypath, data
   return kvps
@@ -25,25 +26,18 @@ module.exports = (event, keys, mapping) ->
   collName = event.namespace?.split('.')[1]
   mapping ?= {}
   keys ?= []
-  keys = _.map keys, (key)-> "#{collName}.#{key}"
 
   # extract the id path and create a relationship
   idKey = "#{collName}._id"
   idRel = {}
   idRel[idKey] = event._id
 
-  # helpers to determine whether many-to-many should be used
-  getKey = (v, k) -> k
-  isLocal = (k) -> k.match(new RegExp "^#{collName}\.")
-  isSelected = (k) -> k in keys
-  isnot = (val) -> not val
-
   # map to unique key space in relcache
   keymap = (key) ->
     usermapping = mapping[key]
     if usermapping?
       return usermapping
-    else
+    else if key in keys
       return "#{collName}.#{key}"
 
   # list of commands we will append to
@@ -53,26 +47,16 @@ module.exports = (event, keys, mapping) ->
 
     when 'set'
       kvps = flattenKvps event.path, event.data, keymap
-      locals = _.pick kvps, _.compose(isLocal, getKey)
-      locals = _.pick locals, _.compose(isSelected, getKey)
-      remotes = _.pick kvps, _.compose(isnot, isLocal, getKey)
-
-      unless _.isEmpty locals
-        commands.push ['set', idKey, event._id, locals]
-      unless _.isEmpty remotes
-        commands.push ['add', idKey, event._id, remotes]
+      unless _.isEmpty kvps
+        commands.push ['set', idKey, event._id, kvps]
 
     when 'unset'
+      cmd = ['unset', idKey, event._id]
       unless event.path is '.'
-        path = keymap(event.path)
-        op = if isLocal(path) then 'unset' else 'remove'
-      else
-        op = 'unset'
-
-      cmd = [op, idKey, event._id]
-      cmd.push path if path
-      if not path? or not isLocal(path) or isSelected(path)
-        commands.push cmd
+        target = keymap(event.path)
+        return [] unless target?
+        cmd.push target
+      commands.push cmd
 
     else
       logger.red 'Particle Cache received unsupported operation:', event

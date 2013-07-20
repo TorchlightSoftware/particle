@@ -113,7 +113,7 @@ describe 'convertDelta', ->
         'sessionId': 'sessions._id'
         'chatId': 'chats._id'
       commands: [
-        ['add', 'chatsessions._id', 5, {'sessions._id': 1, 'chats._id': 2}]
+        ['set', 'chatsessions._id', 5, {'sessions._id': 1, 'chats._id': 2}]
       ]
     ,
       description: 'unset field with mapping'
@@ -128,7 +128,7 @@ describe 'convertDelta', ->
         'sessionId': 'sessions._id'
         'chatId': 'chats._id'
       commands: [
-        ['remove', 'chatsessions._id', 5, 'sessions._id']
+        ['unset', 'chatsessions._id', 5, 'sessions._id']
       ]
   ]
 
