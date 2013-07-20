@@ -36,7 +36,7 @@ class CacheWriter extends Writable
         @mapping = keys
       keys = _.keys @mapping
 
-    return done() if _.isEmpty keys
+    return process.nextTick(done) if _.isEmpty keys
     @status = 'waiting'
 
     # do we have a running query?
@@ -74,10 +74,16 @@ class CacheWriter extends Writable
 
   ready: (done) ->
     if @status is 'ready'
-      done()
+      process.nextTick(done)
     else if @status is 'error'
-      done @error
+      process.nextTick =>
+        done @error
     else
       @once 'ready', done
+
+  destroy: ->
+    if @query?
+      @query.unpipe @
+      delete @query
 
 module.exports = CacheWriter

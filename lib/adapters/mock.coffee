@@ -1,4 +1,5 @@
 _ = require 'lodash'
+logger = require 'ale'
 {EventEmitter} = require 'events'
 {Readable} = require 'stream'
 
@@ -8,16 +9,19 @@ _ = require 'lodash'
 class MockStream extends Readable
   constructor: ({@collName, payload}) ->
     super {objectMode: true}
-    @send r for r in @formatPayload payload
+    process.nextTick =>
+      @send r for r in @formatPayload payload
 
   send: (event) ->
-    @push event
+    process.nextTick =>
+      @push event
 
   update: ({select, idSet}) ->
 
   _read: ->
 
   formatPayload: (records) ->
+    records ?= []
     events = for record in records
       namespace: "test.#{@collName}"
       timestamp: new Date

@@ -1,7 +1,8 @@
-MockAdapter = require '../lib/adapters/mock'
-CacheWriter = require '../lib/cache/CacheWriter'
 Relcache = require 'relcache'
 logger = require 'ale'
+
+MockAdapter = require '../lib/adapters/mock'
+CacheWriter = require '../lib/cache/CacheWriter'
 
 updateJane = {
   timestamp: new Date
@@ -34,7 +35,7 @@ describe 'CacheWriter', ->
     @writer = new CacheWriter {@collName, @adapter, @cache}
 
   afterEach ->
-    @writer.end()
+    @writer.destroy()
     @cache.clear()
 
   it 'should import keys', (done) ->
@@ -64,7 +65,7 @@ describe 'CacheWriter', ->
     @writer.importKeys {accountId: 'accounts._id'}, (err) =>
 
       bob = @cache.get 'users._id', 1
-      bob.should.eql {'accounts._id': [1]}
+      bob.should.eql {'accounts._id': 1}
 
       account = @cache.get 'accounts._id', 1
       account.should.eql {'users._id': [1, 2]}

@@ -10,6 +10,7 @@
   "dependencies":{
     "coffee-script":"*",
     "ale":"*",
+    "qi":"*",
     "lodash":"*",
     "relcache":"*",
     "jayschema":"git://github.com/bitmage/jayschema.git",
@@ -17,7 +18,6 @@
     "protosock":"*"
   },
   "devDependencies":{
-    "qi":"*",
     "uglify-js":"*",
     "mongodb":"*",
     "connect":"*",
