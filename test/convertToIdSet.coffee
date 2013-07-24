@@ -21,6 +21,14 @@ describe 'convertToIdSet', ->
       query: undefined
       output: []
     ,
+      description: 'key not found'
+      query: {foo: 1}
+      output: []
+    ,
+      description: 'value not found'
+      query: {name: 'Billy'}
+      output: []
+    ,
       description: 'simple keys'
       query: {name: 'Ken'}
       output: [5]
@@ -37,6 +45,10 @@ describe 'convertToIdSet', ->
       description: 'comparison operator'
       query: {loginCount: {$gte: 10}}
       output: [7, 19, 13]
+    ,
+      description: 'comparison not found'
+      query: {loginCount: {$gte: 50}}
+      output: []
     ,
       description: "'and' reduced to empty set"
       query: {$and: {name: 'Ken', loginCount: {$gte: 10}}}

@@ -55,7 +55,7 @@ module.exports = (cache, collection, query) ->
 
             # cache supports all comparison operators listed at url above
             results = cache.find opKey, comparitor, v
-            results[idKey]
+            results[idKey] or []
 
           else
             # maybe we're comparing a real object value?
@@ -66,7 +66,7 @@ module.exports = (cache, collection, query) ->
 
       # otherwise it's a regular equality query
       else
-        idSet = cache.get opKey, terms, idKey
+        idSet = cache.get(opKey, terms, idKey) or []
 
       #logger.magenta {original: idSet}
 
