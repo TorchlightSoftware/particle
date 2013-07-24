@@ -53,9 +53,9 @@ describe 'CacheManager', ->
         stuffId: 'stuffs._id'
         userId: 'users._id'
     }, (err) =>
-      @cache.get('stuffs._id').should.eql ['1', '2']
+      @cm.get('stuffs._id').should.eql ['1', '2']
 
-      stuff = @cache.follow 1, 'users._id>userstuffs._id>stuffs._id'
+      stuff = @cm.follow 1, 'users._id>userstuffs._id>stuffs._id'
       stuff.should.eql [1, 2]
       done()
 
@@ -70,9 +70,37 @@ describe 'CacheManager', ->
         criteria: {'name': 'Bob'}
         manifest: true
     }, (err) =>
-      @cache.get('stuffs._id').should.be.empty
-      @cache.get('users.name').should.eql ['Bob', 'Jane']
+      @cm.get('stuffs._id').should.be.empty
+      @cm.get('users.name').should.eql ['Bob', 'Jane']
       done()
+
+  it 'should watch data sources', (done) ->
+    @cm.importDataSources {
+      me:
+        collection: 'users'
+        criteria: {'name': 'Bob'}
+        manifest: true
+    }, (err) =>
+
+      # listen for an event on our source
+      @cm.once 'change:me', (event) =>
+        event.should.eql {
+          op: 'remove',
+          key: 'users._id',
+          value: 1,
+          relation: {'users.name': undefined}
+        }
+        done()
+
+      # send a change to our source collection
+      @adapter.send 'users', {
+        timestamp: new Date
+        namespace: 'test.users'
+        operation: 'set'
+        _id: 1
+        path: 'name'
+        data: 'Bobby'
+      }
 
   it 'should follow a complex path', (done) ->
     @cm.importCacheConfig {
@@ -90,9 +118,9 @@ describe 'CacheManager', ->
           manifest: true
       }, (err) =>
 
-        bobStuff = @cache.follow 'Bob', 'users.name>users._id>userstuffs._id>stuffs._id>stuffs.stuff'
+        bobStuff = @cm.follow 'Bob', 'users.name>users._id>userstuffs._id>stuffs._id>stuffs.stuff'
         bobStuff.should.eql ['foo', 'bar', 'baz']
 
-        janeStuff = @cache.follow 'Jane', 'users.name>users._id>userstuffs._id>stuffs._id>stuffs.stuff'
+        janeStuff = @cm.follow 'Jane', 'users.name>users._id>userstuffs._id>stuffs._id>stuffs.stuff'
         janeStuff.should.eql ['baz']
         done()

@@ -4,6 +4,7 @@ logger = require 'ale'
 {focus} = require 'qi'
 
 CacheWriter = require './CacheWriter'
+extractKeys = require './extractKeys'
 
 class CacheManager extends EventEmitter
 
@@ -14,6 +15,15 @@ class CacheManager extends EventEmitter
     @status = 'waiting'
     @on 'ready', =>
       @status = 'ready'
+
+    # forward cache events
+    @onChange = @emit.bind(@, 'change')
+    @cache.on 'change', @onChange
+
+    # forward query methods to cache
+    @get = @cache.get.bind(@cache)
+    @find = @cache.find.bind(@cache)
+    @follow = @cache.follow.bind(@cache)
 
   importKeys: (collName, keys, done) ->
     done ?= ->
@@ -43,9 +53,23 @@ class CacheManager extends EventEmitter
 
     for name, source of dataSources
       collection = source.collection
-      keys = _.without _.keys(source.criteria), '_id'
+      keys = extractKeys source.criteria
       unless _.isEmpty keys
-        @importKeys source.collection, keys, step()
+        @importKeys collection, keys, step()
+
+        fullKeys = _.map keys, (k) -> "#{collection}.#{k}"
+        @on 'change', (event) =>
+
+          # get our targets regardless of if it's an add or remove
+          {relation, targets} = event
+          if relation
+            targets = _.keys relation
+          else
+            targets = _.keys targets
+
+          matchingKeys = _.intersection fullKeys, targets
+          unless _.isEmpty matchingKeys
+            @emit "change:#{name}", event
 
   checkReady: ->
     ready = true
@@ -62,6 +86,9 @@ class CacheManager extends EventEmitter
       @once 'ready', done
 
   destroy: ->
+    @cache.removeListener 'change', @onChange
+    @removeAllListeners()
+
     for w in @writers
       w.destroy()
 
