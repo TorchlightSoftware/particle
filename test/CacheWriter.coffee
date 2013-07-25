@@ -1,5 +1,6 @@
 Relcache = require 'relcache'
 logger = require 'ale'
+{sample} = require 'torch'
 
 MockAdapter = require '../lib/adapters/mock'
 CacheWriter = require '../lib/cache/CacheWriter'
@@ -51,13 +52,19 @@ describe 'CacheWriter', ->
       done()
 
   it 'cache should update me when keys change', (done) ->
+
+
     @writer.importKeys ['name', 'email'], (err) =>
 
-      @cache.once 'add', ({key, value, relation}) =>
-        key.should.eql 'users._id'
-        value.should.eql 2
-        relation.should.eql {'users.email': 'jane@bar.com'}
-        done()
+      # wait for removal of old values
+      sample @cache, 'change', 2, =>
+
+        @cache.once 'change', ({op, key, value, relation}) =>
+          op.should.eql 'add'
+          key.should.eql 'users._id'
+          value.should.eql 2
+          relation.should.eql {'users.email': 'jane@bar.com'}
+          done()
 
       @adapter.send 'users', updateJane
 
