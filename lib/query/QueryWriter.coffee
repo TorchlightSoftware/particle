@@ -9,16 +9,24 @@ class QueryWriter extends Writable
   constructor: ({@adapter, @cacheManager, @identity, @source, @receiver}) ->
     super {objectMode: true}
 
+    idSet = @_getIdSet()
+    if _.isArray(idSet) and _.isEmpty(idSet)
+      @status = 'ready'
+    else
+      @status = 'waiting'
+
+    @on 'ready', =>
+      @status = 'ready' unless @status is 'error'
+
     @adapter.query {
       collName: @source.collection
-      idSet: @_getIdSet()
+      idSet
       select: @source.manifest
     }, (err, @query) =>
 
       @cacheManager.on "change:#{@source.name}", ->
         @query.update {idSet: @_getIdSet()}
 
-      #@query.on 'data', logger.blue
       @query.pipe @
 
   _getIdSet: ->
@@ -28,6 +36,7 @@ class QueryWriter extends Writable
       return undefined
 
   _write: (event, encoding, done) ->
+    #logger.grey 'received write:'.cyan, event
 
     # trigger ready status
     if event.origin is 'end payload'

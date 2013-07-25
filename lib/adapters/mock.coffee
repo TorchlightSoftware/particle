@@ -11,8 +11,7 @@ logger = require 'ale'
 class MockStream extends Readable
   constructor: ({@collName, payload, @idSet, @select}) ->
     super {objectMode: true}
-    process.nextTick =>
-      @send r for r in @formatPayload payload
+    @send r for r in @formatPayload payload
 
   send: (event) ->
     process.nextTick =>

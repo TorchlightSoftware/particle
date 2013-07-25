@@ -48,9 +48,17 @@ describe 'QueryWriter', ->
         collection: 'users'
         criteria: {_id: '@userId'}
         manifest: true
-      allUsers:
+      visibleUsers:
         collection: 'users'
         criteria: {accountId: '@accountId'}
+        manifest: true
+      notFound:
+        collection: 'users'
+        criteria: {notFound: true}
+        manifest: true
+      allUsers:
+        collection: 'users'
+        criteria: undefined
         manifest: true
 
     @identity =
@@ -101,7 +109,7 @@ describe 'QueryWriter', ->
       @adapter
       @cacheManager
       @identity
-      source: @dataSources.allUsers
+      source: @dataSources.visibleUsers
       @receiver
     }
     @qw.ready =>
@@ -128,4 +136,26 @@ describe 'QueryWriter', ->
       }
       done()
 
-  #it 'should call ready if idSet is empty', (done) ->
+  it 'should call ready if idSet is empty', (done) ->
+    @qw = new QueryWriter {
+      @adapter
+      @cacheManager
+      @identity
+      source: @dataSources.notFound
+      @receiver
+    }
+    @qw.ready =>
+      @collector.history.length.should.eql 0
+      done()
+
+  it 'should call ready if source criteria is undefined', (done) ->
+    @qw = new QueryWriter {
+      @adapter
+      @cacheManager
+      @identity
+      source: @dataSources.allUsers
+      @receiver
+    }
+    @qw.ready =>
+      @collector.history.length.should.eql 2
+      done()

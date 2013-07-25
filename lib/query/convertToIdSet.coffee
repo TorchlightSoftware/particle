@@ -22,7 +22,7 @@ combine = (results, op) ->
 
 module.exports = (cache, identity, collection, query) ->
   convert = convertToValue.bind(null, cache, identity)
-  return [] unless getType(query) is 'Object'
+  return undefined unless getType(query) is 'Object'
 
 
   walk = (op, terms) ->

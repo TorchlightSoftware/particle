@@ -19,7 +19,7 @@ describe 'convertToIdSet', ->
   tests = [
       description: 'default empty set'
       query: undefined
-      output: []
+      output: undefined
     ,
       description: 'key not found'
       query: {foo: 1}
@@ -100,4 +100,8 @@ describe 'convertToIdSet', ->
       {description, query, output} = test
       it description, ->
         result = convertToIdSet relcache, identity, collection, query
-        result.should.eql output
+        if output?
+          should.exist result
+          result.should.eql output
+        else
+          should.not.exist result
