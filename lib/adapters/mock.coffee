@@ -5,9 +5,11 @@ logger = require 'ale'
 
 # A data source that lets you set your own data and send deltas.
 # Used for testing purposes.
+#
+# TODO: Complete implementation of mongo-watch like functionality.
 
 class MockStream extends Readable
-  constructor: ({@collName, payload}) ->
+  constructor: ({@collName, payload, @idSet, @select}) ->
     super {objectMode: true}
     process.nextTick =>
       @send r for r in @formatPayload payload
@@ -18,11 +20,15 @@ class MockStream extends Readable
 
   update: ({select, idSet}) ->
 
+  _allowed: (record) ->
+    return true unless @idSet?
+    return record._id in @idSet
+
   _read: ->
 
   formatPayload: (records) ->
     records ?= []
-    events = for record in records
+    events = for record in records when @_allowed(record)
       namespace: "test.#{@collName}"
       timestamp: new Date
       _id: record._id
@@ -30,7 +36,9 @@ class MockStream extends Readable
       path: '.'
       data: record
 
-    events[events.length-1].origin = 'end payload'
+    unless _.isEmpty events
+      events[events.length-1].origin = 'end payload'
+
     return events
 
 class MockAdapter extends EventEmitter
@@ -46,7 +54,7 @@ class MockAdapter extends EventEmitter
 
   # complies with Mongo-Watch interface
   query: ({collName, idSet, select}, receiver) ->
-    mock = new MockStream {collName, payload: @dataset[collName]}
+    mock = new MockStream {collName, payload: @dataset[collName], idSet, select}
     receiver null, mock
     meta = {mock, collName, idSet, select}
     @streams.push meta

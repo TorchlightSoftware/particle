@@ -73,6 +73,7 @@ module.exports = (cache, identity, collection, query) ->
       # otherwise it's a regular equality query
       else
         value = convert(terms)
+        #logger.grey 'getting:'.yellow, {opKey, value, idKey}
         idSet = cache.get(opKey, value, idKey) or []
 
       #logger.magenta {original: idSet}
