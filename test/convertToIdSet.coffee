@@ -29,12 +29,29 @@ describe 'convertToIdSet', ->
       query: {name: 'Billy'}
       output: []
     ,
+      description: 'get by _id'
+      query: {_id: 5}
+      output: [5]
+    ,
       description: 'simple keys'
       query: {name: 'Ken'}
       output: [5]
     ,
+      description: 'array value'
+      query: {name: ['Ken']}
+      output: [5]
+    ,
+      description: 'empty array value'
+      query: {name: []}
+      output: []
+    ,
       description: 'negation'
       query: {name: {$ne: 'Ken'}}
+      output: [2, 7, 9, 13, 19]
+        #nin: [5]
+    ,
+      description: 'negation of array'
+      query: {name: {$ne: ['Ken']}}
       output: [2, 7, 9, 13, 19]
         #nin: [5]
     ,
@@ -63,13 +80,24 @@ describe 'convertToIdSet', ->
       description: 'remove exception'
       query: {$and: {loginCount: {$gte: 9}, name: {$ne: 'Ken'}}}
       output: [7, 19, 13]
+    ,
+      description: 'identity field'
+      query: {name: '@name'}
+      output: [5]
+    ,
+      description: 'cache lookup'
+      query: {_id: '@name|users.name>users._id'}
+      output: [5]
   ]
 
+  identity =
+    userId: 5
+    name: 'Ken'
   collection = 'users'
 
   for test in tests
     do (test) ->
       {description, query, output} = test
       it description, ->
-        result = convertToIdSet relcache, collection, query
+        result = convertToIdSet relcache, identity, collection, query
         result.should.eql output

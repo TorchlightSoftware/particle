@@ -1,6 +1,8 @@
 logger = require 'ale'
-{getType, addTo} = require '../util'
 _ = require 'lodash'
+
+{getType, addTo, box} = require '../util'
+convertToValue = require './convertToValue'
 
 # combine a set of results using a given operator
 # optional reverse operator for negated sets
@@ -18,7 +20,8 @@ combine = (results, op) ->
   _.reduce results, (l, r) ->
     op l, r
 
-module.exports = (cache, collection, query) ->
+module.exports = (cache, identity, collection, query) ->
+  convert = convertToValue.bind(null, cache, identity)
   return [] unless getType(query) is 'Object'
 
 
@@ -45,16 +48,19 @@ module.exports = (cache, collection, query) ->
 
     else
 
+      if op is '_id'
+        idSet = box convert terms
+
       # if we have a comparison operator:
       # http://docs.mongodb.org/manual/reference/operator/#comparison
-      if getType(terms) is 'Object'
+      else if getType(terms) is 'Object'
 
         sub = for k, v of terms
           if k.match /^\$/
             comparitor = k.substring 1
 
             # cache supports all comparison operators listed at url above
-            results = cache.find opKey, comparitor, v
+            results = cache.find opKey, comparitor, convert(v)
             results[idKey] or []
 
           else
@@ -66,7 +72,8 @@ module.exports = (cache, collection, query) ->
 
       # otherwise it's a regular equality query
       else
-        idSet = cache.get(opKey, terms, idKey) or []
+        value = convert(terms)
+        idSet = cache.get(opKey, value, idKey) or []
 
       #logger.magenta {original: idSet}
 
