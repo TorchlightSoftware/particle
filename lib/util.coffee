@@ -53,3 +53,10 @@ module.exports = util =
       if util.contains el, test
         return index
     return null
+
+  box: (val) ->
+    return [] unless val?
+    if util.getType(val) is 'Array'
+      val
+    else
+      [val]

@@ -78,3 +78,38 @@ describe 'indexContaining', ->
       it description, ->
         result = util.indexContaining list, test
         (result is out).should.eql true
+
+describe 'box', ->
+
+  tests = [
+      description: 'empty array'
+      input: []
+      expected: []
+    ,
+      description: 'undefined'
+      input: undefined
+      expected: []
+    ,
+      description: 'null'
+      input: null
+      expected: []
+    ,
+      description: 'empty object'
+      input: {}
+      expected: [{}]
+    ,
+      description: 'number'
+      input: 1
+      expected: [1]
+    ,
+      description: 'string'
+      input: 'foo'
+      expected: ['foo']
+  ]
+
+  for test in tests
+    do (test) ->
+      {description, input, expected} = test
+      it description, ->
+        result = util.box input
+        result.should.eql expected
