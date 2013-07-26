@@ -36,7 +36,7 @@ class CacheWriter extends Writable
         @mapping = keys
       keys = _.keys @mapping
 
-    return process.nextTick(done) if _.isEmpty keys
+    return process.nextTick(done) if _.isEmpty(keys) and done?
     @status = 'waiting'
 
     # do we have a running query?
@@ -57,7 +57,7 @@ class CacheWriter extends Writable
         else
           @query.pipe @
 
-    @ready done
+    @ready done if done?
 
   _write: (event, encoding, done) ->
     #logger.grey '\nconverting:'.cyan, event, '\nwith:'.cyan, {@keys, @mapping}

@@ -5,6 +5,7 @@ logger = require 'ale'
 
 CacheWriter = require './CacheWriter'
 extractKeys = require './extractKeys'
+extractDependencies = require './extractDependencies'
 
 class CacheManager extends EventEmitter
 
@@ -26,62 +27,83 @@ class CacheManager extends EventEmitter
     @follow = @cache.follow.bind(@cache)
 
   importKeys: (collName, keys, done) ->
-    done ?= ->
     return process.nextTick(done) if _.isEmpty keys
 
     @status = 'waiting'
 
     # do we have a writer for that collection?
     if @writers[collName]
-      @writers[collName].importKeys keys, done
+      @writers[collName].importKeys keys
 
     else
 
       # add a new query
       @writers[collName] = new CacheWriter {collName, @adapter, @cache}
-      @writers[collName].importKeys keys, done
-      @writers[collName].ready @checkReady.bind(@)
+      @writers[collName].importKeys keys
+      @writers[collName].on 'ready', @checkReady.bind(@)
+
+    @ready done if done
 
   importCacheConfig: (config, done) ->
-    step = focus done
+    @status = 'waiting'
 
     for collection, mapping of config
-      @importKeys collection, mapping, step()
+      @importKeys collection, mapping
+
+    @ready done if done
 
   importDataSources: (dataSources, done) ->
-    step = focus done
 
     for name, source of dataSources
       collection = source.collection
+
+      # get keys and deps for finding related cache updates
       keys = extractKeys source.criteria
+      deps = extractDependencies source.criteria
+
+      #logger.yellow {criteria: source.criteria, keys}
+
+      # create or update a writer for this collection
       unless _.isEmpty keys
-        @importKeys collection, keys, step()
+        @status = 'waiting'
+        @importKeys collection, keys
 
-        fullKeys = _.map keys, (k) -> "#{collection}.#{k}"
-        @on 'change', (event) =>
+      fullKeys = _.map keys, (k) -> "#{collection}.#{k}"
 
-          # get our targets regardless of if it's an add or remove
-          {relation, targets} = event
-          if relation
-            targets = _.keys relation
-          else
-            targets = _.keys targets
+      # forward events that relate to this dataSource
+      @on 'change', (event) =>
 
-          matchingKeys = _.intersection fullKeys, targets
-          unless _.isEmpty matchingKeys
-            @emit "change:#{name}", event
+        # get our targets regardless of if it's an add or remove
+        {key, relation, targets} = event
+        if relation
+          targets = _.keys relation
+        else
+          targets = _.keys targets
+
+        # identify keys internal to the collection
+        matchingKeys = _.intersection fullKeys, targets
+        unless _.isEmpty matchingKeys
+          return @emit "change:#{name}", event
+
+        # identify external cache lookup dependencies
+        else
+          for dep in deps when (dep[0] is key) and (dep[1] in targets)
+            return @emit "change:#{name}", event
+
+        # if nothing is found, ignore the event
+
+    @ready done if done
 
   checkReady: ->
-    ready = true
-    for collName, w of @writers
-      ready = false unless w.ready
+    ready = _.every @writers, (w) -> w.status is 'ready'
     @emit 'ready' if ready
 
   ready: (done) ->
     if @status is 'ready'
-      done()
+      process.nextTick done
     else if @status is 'error'
-      done @error
+      process.nextTick =>
+        done @error
     else
       @once 'ready', done
 

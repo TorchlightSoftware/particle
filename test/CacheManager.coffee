@@ -1,5 +1,7 @@
+should = require 'should'
 Relcache = require 'relcache'
 logger = require 'ale'
+{sample} = require 'torch'
 
 MockAdapter = require '../lib/adapters/mock'
 CacheManager = require '../lib/cache/CacheManager'
@@ -14,6 +16,9 @@ describe 'CacheManager', ->
         ,
           _id: 2
           stuff: ['baz']
+        ,
+          _id: 3
+          stuff: ['ang']
       ]
       users: [
           _id: 1
@@ -124,3 +129,51 @@ describe 'CacheManager', ->
         janeStuff = @cm.follow 'Jane', 'users.name>users._id>userstuffs._id>stuffs._id>stuffs.stuff'
         janeStuff.should.eql ['baz']
         done()
+
+  it 'should emit updates for dependent record changes', (done) ->
+    @cm.importCacheConfig {
+      userstuffs:
+        stuffId: 'stuffs._id'
+        userId: 'users._id'
+      stuffs:
+        stuff: 'stuffs.stuff'
+    }, (err) =>
+
+      @cm.importDataSources {
+        myStuff:
+          collection: 'stuffs'
+          criteria: {_id: '@userId|users._id>userstuffs._id>stuffs._id'}
+          manifest: true
+      }, (err) =>
+
+        sample @cm, 'change:myStuff', 2, (err, events) ->
+          [[addId], [addReverse]] = events
+          should.exist addId
+          should.exist addReverse
+
+          addId.should.eql {
+            op: 'add',
+            key: 'userstuffs._id',
+            value: 4,
+            relation: {'users._id': 1, 'stuffs._id': 3}
+          }
+          addReverse.should.eql {
+            op: 'add',
+            key: 'users._id',
+            value: 1,
+            relation: {'userstuffs._id': 4}
+          }
+          done()
+
+        collName = 'userstuffs'
+        @adapter.send collName, {
+          namespace: "test.#{collName}"
+          timestamp: new Date
+          _id: 4
+          operation: 'set'
+          path: '.'
+          data:
+            _id: 4
+            userId: 1
+            stuffId: 3
+        }

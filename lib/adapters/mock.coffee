@@ -13,8 +13,11 @@ class MockStream extends Readable
     super {objectMode: true}
     @send r for r in @formatPayload payload
 
+    @update = @emit.bind(@, 'receivedUpdate')
+
   send: (event) ->
     process.nextTick =>
+      #logger.grey 'sending:'.blue, event
       @push event
 
   update: ({select, idSet}) ->
@@ -48,15 +51,18 @@ class MockAdapter extends EventEmitter
   # used to mock delta events
   send: (collName, event) ->
     targets = @streams.filter (s) -> s.collName is collName
+    #logger.grey 'sending:'.yellow, {collName, targets: _.map targets, 'collName'}
     for target in targets
       target.mock.send event
 
   # complies with Mongo-Watch interface
   query: ({collName, idSet, select}, receiver) ->
     mock = new MockStream {collName, payload: @dataset[collName], idSet, select}
-    receiver null, mock
+    mock.on 'receivedUpdate', @emit.bind(@, "#{collName}:receivedUpdate")
     meta = {mock, collName, idSet, select}
     @streams.push meta
+
+    receiver null, mock
     @emit 'addedQuery', meta
 
 module.exports = MockAdapter
