@@ -3,6 +3,10 @@ extractDependencies = require '../lib/cache/extractDependencies'
 
 describe 'extractDependencies', ->
   tests = [
+      description: 'non string'
+      criteria: {_id: 5}
+      output: []
+    ,
       description: 'no dependencies'
       criteria: {_id: "@userId"}
       output: []

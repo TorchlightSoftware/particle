@@ -3,6 +3,7 @@ _ = require 'lodash'
 logger = require 'ale'
 
 getDeps = (statement) ->
+  return [] unless _.isString statement
   [base, path] = statement.split '|'
 
   if path?
