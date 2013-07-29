@@ -1,6 +1,9 @@
 Relcache = require 'relcache'
 logger = require 'ale'
+{focus} = require 'qi'
+{sample} = require 'torch'
 {EventEmitter} = require 'events'
+_ = require 'lodash'
 
 MockAdapter = require '../lib/adapters/mock'
 CacheManager = require '../lib/cache/CacheManager'
@@ -8,13 +11,16 @@ QueryWriter = require '../lib/query/QueryWriter'
 
 describe 'QueryWriter', ->
   before ->
-    @adapter = new MockAdapter {
+    @data = {
       stuffs: [
           _id: 1
           stuff: ['foo', 'bar']
         ,
           _id: 2
           stuff: ['baz']
+        ,
+          _id: 3
+          stuff: ['ang']
       ]
       users: [
           _id: 1
@@ -41,12 +47,22 @@ describe 'QueryWriter', ->
           stuffId: 2
       ]
     }
+    @adapter = new MockAdapter @data
     @cache = new Relcache
+
+    @cacheConfig =
+      userstuffs:
+        userId: 'users._id'
+        stuffId: 'stuffs._id'
 
     @dataSources =
       myProfile:
         collection: 'users'
         criteria: {_id: '@userId'}
+        manifest: true
+      myStuff:
+        collection: 'stuffs'
+        criteria: {_id: '@userId|users._id>userstuffs._id>stuffs._id'}
         manifest: true
       visibleUsers:
         collection: 'users'
@@ -74,8 +90,10 @@ describe 'QueryWriter', ->
     @receiver = @collector.emit.bind(@collector, 'receive')
 
   beforeEach (done) ->
+    step = focus done
     @cacheManager = new CacheManager {@adapter, @cache}
-    @cacheManager.importDataSources @dataSources, done
+    @cacheManager.importCacheConfig @cacheConfig, step()
+    @cacheManager.importDataSources @dataSources, step()
 
   afterEach ->
     @qw.destroy() if @qw?
@@ -87,6 +105,7 @@ describe 'QueryWriter', ->
       @adapter
       @cacheManager
       @identity
+      sourceName: 'myProfile'
       source: @dataSources.myProfile
       @receiver
     }
@@ -109,6 +128,7 @@ describe 'QueryWriter', ->
       @adapter
       @cacheManager
       @identity
+      sourceName: 'visibleUsers'
       source: @dataSources.visibleUsers
       @receiver
     }
@@ -141,6 +161,7 @@ describe 'QueryWriter', ->
       @adapter
       @cacheManager
       @identity
+      sourceName: 'notFound'
       source: @dataSources.notFound
       @receiver
     }
@@ -153,9 +174,59 @@ describe 'QueryWriter', ->
       @adapter
       @cacheManager
       @identity
+      sourceName: 'allUsers'
       source: @dataSources.allUsers
       @receiver
     }
     @qw.ready =>
       @collector.history.length.should.eql 2
       done()
+
+  it 'should filter on relationship', (done) ->
+    @qw = new QueryWriter {
+      @adapter
+      @cacheManager
+      @identity
+      sourceName: 'myStuff'
+      source: @dataSources.myStuff
+      @receiver
+    }
+    @qw.ready =>
+      @collector.history.length.should.eql 2
+      data = _.map @collector.history, 'data'
+      data.should.eql @data.stuffs.slice 0, 2
+      done()
+
+  it 'should update on relationship change', (done) ->
+    sourceName = 'myStuff'
+    @qw = new QueryWriter {
+      @adapter
+      @cacheManager
+      @identity
+      sourceName
+      source: @dataSources[sourceName]
+      @receiver
+    }
+    @qw.ready =>
+      @collector.history.length.should.eql 2
+
+      collName = 'userstuffs'
+      sample @adapter, "stuffs:receivedUpdate", 3, (err, events) ->
+        [[add1], [add2], [add3]] = events
+
+        add1.newIdSet.should.eql [1, 2]
+        add2.newIdSet.should.eql [1, 2]
+        add3.newIdSet.should.eql [1, 2, 3]
+        done()
+
+      @adapter.send collName, {
+        namespace: "test.#{collName}"
+        timestamp: new Date
+        _id: 4
+        operation: 'set'
+        path: '.'
+        data:
+          _id: 4
+          userId: 1
+          stuffId: 3
+      }

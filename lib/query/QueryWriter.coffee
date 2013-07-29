@@ -6,7 +6,7 @@ _ = require 'lodash'
 convertToIdSet = require './convertToIdSet'
 
 class QueryWriter extends Writable
-  constructor: ({@adapter, @cacheManager, @identity, @source, @receiver}) ->
+  constructor: ({@adapter, @cacheManager, @identity, @sourceName, @source, @receiver}) ->
     super {objectMode: true}
 
     idSet = @_getIdSet()
@@ -24,8 +24,8 @@ class QueryWriter extends Writable
       select: @source.manifest
     }, (err, @query) =>
 
-      @cacheManager.on "change:#{@source.name}", ->
-        @query.update {idSet: @_getIdSet()}
+      @cacheManager.on "change:#{@sourceName}", (event) =>
+        @query?.update {newIdSet: @_getIdSet()}
 
       @query.pipe @
 
