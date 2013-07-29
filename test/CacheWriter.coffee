@@ -33,6 +33,7 @@ describe 'CacheWriter', ->
     @cache = new Relcache
 
   beforeEach ->
+    @cache?.clear()
     @writer = new CacheWriter {@collName, @adapter, @cache}
 
   afterEach ->

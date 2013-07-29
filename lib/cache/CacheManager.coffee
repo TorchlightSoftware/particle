@@ -61,7 +61,7 @@ class CacheManager extends EventEmitter
       keys = extractKeys source.criteria
       deps = extractDependencies source.criteria
 
-      #logger.yellow {criteria: source.criteria, keys}
+      #logger.yellow {criteria: source.criteria, keys, deps}
 
       # create or update a writer for this collection
       unless _.isEmpty keys
@@ -70,27 +70,30 @@ class CacheManager extends EventEmitter
 
       fullKeys = _.map keys, (k) -> "#{collection}.#{k}"
 
-      # forward events that relate to this dataSource
-      @on 'change', (event) =>
+      do (name, keys, deps) =>
 
-        # get our targets regardless of if it's an add or remove
-        {key, relation, targets} = event
-        if relation
-          targets = _.keys relation
-        else
-          targets = _.keys targets
+        # forward events that relate to this dataSource
+        @on 'change', (event) =>
 
-        # identify keys internal to the collection
-        matchingKeys = _.intersection fullKeys, targets
-        unless _.isEmpty matchingKeys
-          return @emit "change:#{name}", event
+          # get our targets regardless of if it's an add or remove
+          {key, relation, targets} = event
+          if relation
+            targets = _.keys relation
+          else
+            targets = _.keys targets
 
-        # identify external cache lookup dependencies
-        else
-          for dep in deps when (dep[0] is key) and (dep[1] in targets)
+          # identify keys internal to the collection
+          matchingKeys = _.intersection fullKeys, targets
+          unless _.isEmpty matchingKeys
             return @emit "change:#{name}", event
 
-        # if nothing is found, ignore the event
+          # identify external cache lookup dependencies
+          else
+            #logger.grey 'comparing:'.cyan, {deps, key, targets}
+            for dep in deps when (dep[0] is key) and (dep[1] in targets)
+              return @emit "change:#{name}", event
+
+          # if nothing is found, ignore the event
 
     @ready done if done
 

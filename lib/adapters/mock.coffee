@@ -13,14 +13,14 @@ class MockStream extends Readable
     super {objectMode: true}
     @send r for r in @formatPayload payload
 
-    @update = @emit.bind(@, 'receivedUpdate')
+    @update = (args...) =>
+      #logger.cyan 'got update:', args
+      @emit 'receivedUpdate', args...
 
   send: (event) ->
     process.nextTick =>
       #logger.grey 'sending:'.blue, event
       @push event
-
-  update: ({select, idSet}) ->
 
   _allowed: (record) ->
     return true unless @idSet?
@@ -58,6 +58,8 @@ class MockAdapter extends EventEmitter
   # complies with Mongo-Watch interface
   query: ({collName, idSet, select}, receiver) ->
     mock = new MockStream {collName, payload: @dataset[collName], idSet, select}
+    mock.on 'receivedUpdate', (args...) =>
+      @emit "#{collName}:receivedUpdate", args...
     mock.on 'receivedUpdate', @emit.bind(@, "#{collName}:receivedUpdate")
     meta = {mock, collName, idSet, select}
     @streams.push meta
