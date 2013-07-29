@@ -9,25 +9,26 @@ class QueryWriter extends Writable
   constructor: ({@adapter, @cacheManager, @identity, @sourceName, @source, @receiver}) ->
     super {objectMode: true}
 
-    idSet = @_getIdSet()
-    if _.isArray(idSet) and _.isEmpty(idSet)
-      @status = 'ready'
-    else
-      @status = 'waiting'
-
+    @status = 'waiting'
     @on 'ready', =>
       @status = 'ready' unless @status is 'error'
 
-    @adapter.query {
-      collName: @source.collection
-      idSet
-      select: @source.manifest
-    }, (err, @query) =>
+    @cacheManager.ready =>
 
-      @cacheManager.on "change:#{@sourceName}", (event) =>
-        @query?.update {newIdSet: @_getIdSet()}
+      idSet = @_getIdSet()
+      if _.isArray(idSet) and _.isEmpty(idSet)
+        @emit 'ready'
 
-      @query.pipe @
+      @adapter.query {
+        collName: @source.collection
+        idSet
+        select: @source.manifest
+      }, (err, @query) =>
+
+        @cacheManager.on "change:#{@sourceName}", (event) =>
+          @query?.update {newIdSet: @_getIdSet()}
+
+        @query.pipe @
 
   _getIdSet: ->
     if @source.criteria
