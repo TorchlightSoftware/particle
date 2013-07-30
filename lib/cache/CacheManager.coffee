@@ -6,16 +6,15 @@ logger = require 'ale'
 CacheWriter = require './CacheWriter'
 extractKeys = require './extractKeys'
 extractDependencies = require './extractDependencies'
+readyMixin = require '../mixins/ready'
 
 class CacheManager extends EventEmitter
 
   constructor: ({@adapter, @cache}) ->
     super
+    readyMixin.call(@)
 
     @writers = {}
-    @status = 'waiting'
-    @on 'ready', =>
-      @status = 'ready'
 
     # forward cache events
     @onChange = @emit.bind(@, 'change')
@@ -100,15 +99,6 @@ class CacheManager extends EventEmitter
   checkReady: ->
     ready = _.every @writers, (w) -> w.status is 'ready'
     @emit 'ready' if ready
-
-  ready: (done) ->
-    if @status is 'ready'
-      process.nextTick done
-    else if @status is 'error'
-      process.nextTick =>
-        done @error
-    else
-      @once 'ready', done
 
   destroy: ->
     @cache.removeListener 'change', @onChange

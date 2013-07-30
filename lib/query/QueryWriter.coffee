@@ -4,14 +4,12 @@ _ = require 'lodash'
 
 {getType} = require '../util'
 convertToIdSet = require './convertToIdSet'
+readyMixin = require '../mixins/ready'
 
 class QueryWriter extends Writable
   constructor: ({@adapter, @cacheManager, @identity, @sourceName, @source, @receiver}) ->
     super {objectMode: true}
-
-    @status = 'waiting'
-    @on 'ready', =>
-      @status = 'ready' unless @status is 'error'
+    readyMixin.call(@)
 
     @cacheManager.ready =>
 
@@ -51,15 +49,6 @@ class QueryWriter extends Writable
     # write to receiver
     @receiver origin, event
     done()
-
-  ready: (done) ->
-    if @status is 'ready'
-      process.nextTick(done)
-    else if @status is 'error'
-      process.nextTick =>
-        done @error
-    else
-      @once 'ready', done
 
   destroy: ->
     if @query?

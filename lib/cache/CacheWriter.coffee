@@ -4,6 +4,7 @@ logger = require 'ale'
 _ = require 'lodash'
 
 convertDelta = require './convertDelta'
+readyMixin = require '../mixins/ready'
 
 convertToSelect = (keys) ->
   select = {}
@@ -13,18 +14,10 @@ convertToSelect = (keys) ->
 
 class CacheWriter extends Writable
   constructor: ({@collName, @adapter, @cache}) ->
-
     super {objectMode: true}
+    readyMixin.call(@)
 
     @query = null
-    @status = 'waiting'
-
-    @on 'ready', =>
-      @status = 'ready' unless @status is 'error'
-
-    @on 'error', (err) =>
-      @error = err
-      @status = 'error'
 
   importKeys: (keys, done) ->
 
@@ -71,15 +64,6 @@ class CacheWriter extends Writable
     # if end payload, set ready status
     @emit 'ready' if event.origin is 'end payload'
     done()
-
-  ready: (done) ->
-    if @status is 'ready'
-      process.nextTick(done)
-    else if @status is 'error'
-      process.nextTick =>
-        done @error
-    else
-      @once 'ready', done
 
   destroy: ->
     if @query?

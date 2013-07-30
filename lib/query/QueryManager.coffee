@@ -4,16 +4,15 @@ logger = require 'ale'
 {focus} = require 'qi'
 
 QueryWriter = require './QueryWriter'
+readyMixin = require '../mixins/ready'
 
 class QueryManager extends EventEmitter
 
   constructor: ({@adapter, @cacheManager, @identity, @dataSources, @receiver}) ->
     super
+    readyMixin.call(@)
 
     @writers = {}
-    @status = 'waiting'
-    @on 'ready', =>
-      @status = 'ready'
 
     for name, source of @dataSources
       source = _.merge {}, source, {name}
@@ -25,14 +24,6 @@ class QueryManager extends EventEmitter
   checkReady: ->
     ready = _.every @writers, (w) -> w.status is 'ready'
     @emit 'ready' if ready
-
-  ready: (done) ->
-    if @status is 'ready'
-      done()
-    else if @status is 'error'
-      done @error
-    else
-      @once 'ready', done
 
   destroy: ->
     for w in @writers
