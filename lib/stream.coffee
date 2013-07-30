@@ -1,7 +1,13 @@
+Relcache = require 'relcache'
+logger = require 'ale'
+
+CacheManager = require './cache/CacheManager'
+QueryManager = require './query/QueryManager'
+Server = require './server'
+
 {empty, _} = require './util'
 filterPayload = require './filterPayload'
 filterDelta = require './filterDelta'
-Server = require './server'
 
 class Stream
   listeners: []
@@ -9,14 +15,20 @@ class Stream
 
   constructor: (policy) ->
 
+    @queryManagers = []
+
     @policy = policy or {}
     @policy.dataSources or= {}
     for name, def of @policy.dataSources
       def.manifest ?= true
     @policy.identityLookup or= (identity, done) -> done null, identity
 
-    @debug = policy.onDebug or ->
+    @cache = new Relcache
+    @cacheManager = new CacheManager {adapter: @policy.adapter, @cache}
+    @cacheManager.importCacheConfig @policy.cache
+    @cacheManager.importDataSources @policy.dataSources
 
+    @debug = policy.onDebug or ->
     @error = @policy.onError or console.error
 
   init: (server, options) ->
@@ -31,7 +43,7 @@ class Stream
     @policy.identityLookup identity, (err, finalIdentity) =>
       return done err if err
       _.extend identity, finalIdentity
-      @debug 'Completed identity lookup.', {identity, err}
+      @debug 'Completed identity lookup.', {err, identity}
 
       # send a manifest to the client
       manifest = {timestamp: new Date}
@@ -40,33 +52,17 @@ class Stream
       receive 'manifest', manifest
       @debug 'Sent manifest.', {manifest}
 
-      # connect data deltas to their respective collections in the dataRoot
-      for name, source of @policy.dataSources
+      inputs = {
+        adapter: @policy.adapter
+        cacheManager: @cacheManager
+        identity: identity
+        dataSources: @policy.dataSources
+        receiver: receive
+      }
 
-        # close over variables so they stay set in the callbacks
-        do (name, source) =>
-          {delta, payload, manifest} = source
-
-          # respond with initial data {data, timestamp}
-          @debug 'Requesting payload.', {identity}
-          payload identity, (err, initialData) =>
-            if err
-              @error {identity: identity, context: 'Error retrieving payload.', error: err}
-            else
-              filtered = filterPayload manifest, initialData.data
-              event = _.extend {}, initialData, {root: name, data: filtered}
-              @debug 'Sent payload.', {event, err}
-              receive 'payload', event
-
-          # respond with deltas over time
-          delta identity, (change) =>
-            filtered = filterDelta manifest, change.oplist
-            unless empty filtered
-              event = _.extend {}, change, {root: name, oplist: filtered}
-              @debug 'Sent delta.', {event}
-              receive 'delta', event
-
-      done()
+      qm = new QueryManager inputs
+      @queryManagers.push qm
+      qm.ready done
 
   disconnect: ->
     @server.disconnect() if @server

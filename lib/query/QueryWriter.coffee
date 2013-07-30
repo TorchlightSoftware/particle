@@ -41,12 +41,15 @@ class QueryWriter extends Writable
 
     # trigger ready status
     if event.origin is 'end payload'
-      event.origin = 'payload'
+      origin = 'payload'
       process.nextTick =>
         @emit 'ready'
 
+    else
+      origin = event.origin
+
     # write to receiver
-    @receiver event.origin, event
+    @receiver origin, event
     done()
 
   ready: (done) ->

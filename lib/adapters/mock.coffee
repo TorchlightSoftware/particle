@@ -31,6 +31,7 @@ class MockStream extends Readable
   formatPayload: (records) ->
     records ?= []
     events = for record in records when @_allowed(record)
+      origin: 'payload'
       namespace: "test.#{@collName}"
       timestamp: new Date
       _id: record._id
