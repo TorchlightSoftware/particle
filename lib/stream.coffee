@@ -28,7 +28,7 @@ class Stream extends EventEmitter
 
     @cache = new Relcache
     @cacheManager = new CacheManager {adapter: @policy.adapter, @cache, @onDebug}
-    @cacheManager.importCacheConfig @policy.cache
+    @cacheManager.importCacheConfig @policy.cacheConfig
     @cacheManager.importDataSources @policy.dataSources
 
     @error = @policy.onError or console.error

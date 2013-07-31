@@ -50,6 +50,7 @@ class CacheManager extends EventEmitter
   importCacheConfig: (config, done) ->
     @status = 'waiting'
 
+    @debug 'Importing cache config:'.red, config
     for collection, mapping of config
       @importKeys collection, mapping
 
@@ -102,7 +103,9 @@ class CacheManager extends EventEmitter
     @ready done if done
 
   checkReady: ->
-    ready = _.every @writers, (w) -> w.status is 'ready'
+    status = _.map @writers, 'status'
+    ready = _.every status, (s) -> s is 'ready'
+    @debug 'Cache Writers ready?'.red, status, ready
     @emit 'ready' if ready
 
   destroy: ->

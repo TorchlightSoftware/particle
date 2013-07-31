@@ -1,6 +1,7 @@
 should = require 'should'
 _ = require 'lodash'
 logger = require 'torch'
+{sample} = require 'ale'
 {EventEmitter} = require 'events'
 #{Server, Db, ObjectID} = require 'mongodb'
 
@@ -15,7 +16,6 @@ limit = (policy, sources) ->
 describe 'Stream', ->
   beforeEach ->
     @collector = new EventEmitter
-    @collector.history = []
     @collector.on 'receive', (origin, event) =>
       @collector[origin] ?= []
       @collector[origin].push event
@@ -83,44 +83,61 @@ describe 'Stream', ->
           email: 'kim@foo.com'
       }
 
-  #it 'should retrieve payload for myStuff', (done) ->
-    #policy = limit samplePolicy, ['myStuff']
+  it 'should retrieve payload for myStuff', (done) ->
+    policy = limit samplePolicy, ['myStuff']
     #policy.onDebug = logger.grey
-    #stream = new Stream policy
-    #stream.register @identity, @receiver, (err) =>
-      #logger.white @collector
+    stream = new Stream policy
+    stream.register @identity, @receiver, (err) =>
 
-      #@collector.manifest.length.should.eql 1
-      #_.keys(@collector.manifest[0]).should.eql ['timestamp', 'myStuff']
+      @collector.manifest.length.should.eql 1
+      _.keys(@collector.manifest[0]).should.eql ['timestamp', 'myStuff']
 
-      #@collector.payload.length.should.eql 2
-      #[bob, jane] = @collector.payload
-      #done()
+      @collector.payload.length.should.eql 2
+      stuff = _.map @collector.payload, 'data'
+      stuff.should.eql [
+          _id: 1
+          stuff: [ 'foo', 'bar' ]
+        ,
+          _id: 2
+          stuff: [ 'baz' ]
+      ]
+      done()
 
-  #it 'should retrieve my full set of models', (done) ->
-    #policy = limit samplePolicy, ['myProfile', 'myStuff', 'visibleUsers']
-    ##policy.onDebug = logger.grey
-    #stream = new Stream policy
-    #stream.register @identity, @receiver, (err) =>
+  it 'should update on new stuff', (done) ->
+    policy = limit samplePolicy, ['myStuff']
+    #policy.onDebug = logger.grey
+    stream = new Stream policy
+    stream.register @identity, @receiver, (err) =>
 
-      #@collector.payload.length.should.eql 2
+      @collector.payload.length.should.eql 2
 
-      #collName = 'users'
 
-      #policy.adapter.once "#{collName}:receivedUpdate", ({newIdSet}) ->
-        #newIdSet.should.eql [1, 2, 3]
-        #done()
+      # we're getting duplicate notifications due to reverse relations updating
+      sample policy.adapter, "stuffs:receivedUpdate", 2, (err, events) ->
+        [[{newIdSet}]] = events
+        newIdSet.should.eql [1, 2, 3]
+        done()
 
-      #policy.adapter.send collName, {
-        #namespace: "test.#{collName}"
-        #origin: 'delta'
-        #timestamp: new Date
-        #_id: 3
-        #operation: 'set'
-        #path: '.'
-        #data:
-          #_id: 3
-          #accountId: 1
-          #name: 'Kim'
-          #email: 'kim@foo.com'
-      #}
+      collName = 'userstuffs'
+      policy.adapter.send collName, {
+        namespace: "test.#{collName}"
+        origin: 'delta'
+        timestamp: new Date
+        _id: 4
+        operation: 'set'
+        path: '.'
+        data:
+          _id: 4
+          userId: 1
+          stuffId: 3
+      }
+
+  it 'should retrieve my full set of models', (done) ->
+    policy = limit samplePolicy, ['myProfile', 'myStuff', 'visibleUsers']
+    #policy.onDebug = logger.grey
+    stream = new Stream policy
+    stream.register @identity, @receiver, (err) =>
+
+      @collector.payload.length.should.eql 5
+
+      done()

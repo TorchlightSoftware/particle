@@ -113,6 +113,7 @@ describe 'QueryWriter', ->
       @collector.history.length.should.eql 1
       @collector.history[0].should.include {
         operation: 'set'
+        root: 'myProfile'
         _id: 1
         path: '.'
         data:
@@ -136,6 +137,7 @@ describe 'QueryWriter', ->
       @collector.history.length.should.eql 2
       @collector.history[0].should.include {
         operation: 'set'
+        root: 'visibleUsers'
         _id: 1
         path: '.'
         data:
@@ -146,6 +148,7 @@ describe 'QueryWriter', ->
       }
       @collector.history[1].should.include {
         operation: 'set'
+        root: 'visibleUsers'
         _id: 2
         path: '.'
         data:
@@ -214,8 +217,8 @@ describe 'QueryWriter', ->
       sample @adapter, "stuffs:receivedUpdate", 3, (err, events) ->
         [[add1], [add2], [add3]] = events
 
-        add1.newIdSet.should.eql [1, 2]
-        add2.newIdSet.should.eql [1, 2]
+        add1.newIdSet.should.eql [1, 2, 3]
+        add2.newIdSet.should.eql [1, 2, 3]
         add3.newIdSet.should.eql [1, 2, 3]
         done()
 

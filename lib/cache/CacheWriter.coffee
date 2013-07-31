@@ -41,14 +41,16 @@ class CacheWriter extends Writable
       newKeys = _.union @keys, keys
       newSelect = convertToSelect newKeys
       @keys = newKeys
+      @debug 'Cache updating query:'.red, {@collName, newSelect}
       @query.update {newSelect}
 
     else
 
       # add a new query
       @keys = keys
-      newSelect = convertToSelect keys
-      @adapter.query {@collName, newSelect}, (err, @query) =>
+      select = convertToSelect keys
+      @debug 'Cache requesting query:'.red, {@collName, select}
+      @adapter.query {@collName, select}, (err, @query) =>
         if err
           @emit 'error', err
         else

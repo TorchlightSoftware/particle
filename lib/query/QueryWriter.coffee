@@ -15,10 +15,12 @@ class QueryWriter extends Writable
     readyMixin.call(@)
     debugMixin.call(@)
 
+    @debug 'Waiting for cache manager...'.blue
+
     @cacheManager.ready =>
 
       idSet = @_getIdSet()
-      @debug 'initial idSet:'.blue, idSet
+      @debug 'Cache ready! Initial idSet:'.blue, idSet
       if _.isArray(idSet) and _.isEmpty(idSet)
         @emit 'ready'
 
@@ -44,6 +46,9 @@ class QueryWriter extends Writable
       return undefined
 
   _write: (event, encoding, done) ->
+
+    # tell the receiver what source this is for
+    event.root = @sourceName
 
     # trigger ready status
     if event.origin is 'end payload'
