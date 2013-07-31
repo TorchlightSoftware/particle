@@ -1,19 +1,24 @@
 {Writable} = require 'stream'
-logger = require 'ale'
 _ = require 'lodash'
 
 {getType} = require '../util'
 convertToIdSet = require './convertToIdSet'
 readyMixin = require '../mixins/ready'
+debugMixin = require '../mixins/debug'
 
 class QueryWriter extends Writable
-  constructor: ({@adapter, @cacheManager, @identity, @sourceName, @source, @receiver}) ->
+
+  #{@adapter, @cacheManager, @identity, @sourceName, @source, @receiver}
+  constructor: (args) ->
+    _.merge @, args
     super {objectMode: true}
     readyMixin.call(@)
+    debugMixin.call(@)
 
     @cacheManager.ready =>
 
       idSet = @_getIdSet()
+      @debug 'initial idSet:'.blue, idSet
       if _.isArray(idSet) and _.isEmpty(idSet)
         @emit 'ready'
 
@@ -24,7 +29,11 @@ class QueryWriter extends Writable
       }, (err, @query) =>
 
         @cacheManager.on "change:#{@sourceName}", (event) =>
-          @query?.update {newIdSet: @_getIdSet()}
+          newIdSet = @_getIdSet()
+          @debug 'userIds'.cyan, @cacheManager.get 'users.accountId', 1
+          @debug 'accountId'.cyan, @cacheManager.get 'users._id', 3
+          @debug 'updating query:'.blue, {@source, newIdSet}
+          @query?.update {newIdSet}
 
         @query.pipe @
 
@@ -35,7 +44,6 @@ class QueryWriter extends Writable
       return undefined
 
   _write: (event, encoding, done) ->
-    #logger.grey 'received write:'.cyan, event
 
     # trigger ready status
     if event.origin is 'end payload'
@@ -47,6 +55,7 @@ class QueryWriter extends Writable
       origin = event.origin
 
     # write to receiver
+    @debug 'sending event:'.blue, {origin, event}
     @receiver origin, event
     done()
 

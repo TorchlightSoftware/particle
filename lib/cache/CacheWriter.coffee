@@ -1,10 +1,10 @@
 {Writable} = require 'stream'
 {getType} = require '../util'
-logger = require 'ale'
 _ = require 'lodash'
 
 convertDelta = require './convertDelta'
 readyMixin = require '../mixins/ready'
+debugMixin = require '../mixins/debug'
 
 convertToSelect = (keys) ->
   select = {}
@@ -13,9 +13,13 @@ convertToSelect = (keys) ->
   return select
 
 class CacheWriter extends Writable
-  constructor: ({@collName, @adapter, @cache}) ->
+
+  #{@collName, @adapter, @cache, @onDebug}
+  constructor: (args) ->
+    _.merge @, args
     super {objectMode: true}
     readyMixin.call(@)
+    debugMixin.call(@)
 
     @query = null
 
@@ -53,9 +57,9 @@ class CacheWriter extends Writable
     @ready done if done?
 
   _write: (event, encoding, done) ->
-    #logger.grey '\nconverting:'.cyan, event, '\nwith:'.cyan, {@keys, @mapping}
-    commands = convertDelta event, @keys, @mapping
-    #logger.grey '\ncalling:'.cyan, {commands}
+    #@debug '\nconverting:'.red, event, '\nwith:'.red, {@keys, @mapping}
+    commands = convertDelta event, @keys, @mapping, @onError
+    @debug '\nmodifying cache:'.red, {commands}
 
     for c in commands
       [command, args...] = c

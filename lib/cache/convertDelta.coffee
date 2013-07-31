@@ -1,5 +1,4 @@
 {getType} = require '../util'
-logger = require 'ale'
 _ = require 'lodash'
 
 flattenKvps = (keypath, data, keymap) ->
@@ -22,7 +21,8 @@ flattenKvps = (keypath, data, keymap) ->
 # Intertwining responsibilites seem to be a major source of complexity here.
 # Perhaps this can be split out into a pipeline of transformations, rather than occuring all at once?
 # e.g: flattenKvps -> applyMapping -> splitLocalRemote -> filterKeys
-module.exports = (event, keys, mapping) ->
+module.exports = (event, keys, mapping, onError) ->
+  onError ?= ->
   collName = event.namespace?.split('.')[1]
   mapping ?= {}
   keys ?= []
@@ -59,7 +59,7 @@ module.exports = (event, keys, mapping) ->
       commands.push cmd
 
     else
-      logger.red 'Particle Cache received unsupported operation:', event
+      onError 'Particle Cache received unsupported operation:'.red, event
 
     #when 'inc'
     #when 'rename'

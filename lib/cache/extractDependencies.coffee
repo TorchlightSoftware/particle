@@ -1,6 +1,5 @@
 {getType} = require '../util'
 _ = require 'lodash'
-logger = require 'ale'
 
 getDeps = (statement) ->
   return [] unless _.isString statement

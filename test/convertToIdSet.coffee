@@ -1,5 +1,5 @@
 should = require 'should'
-logger = require 'ale'
+logger = require 'torch'
 
 convertToIdSet = require '../lib/query/convertToIdSet'
 Relcache = require 'relcache'

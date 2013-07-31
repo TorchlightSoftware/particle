@@ -1,7 +1,7 @@
 {focus} = require 'qi'
 {EventEmitter} = require 'events'
 Relcache = require 'relcache'
-logger = require 'ale'
+logger = require 'torch'
 
 CacheManager = require '../lib/cache/CacheManager'
 QueryManager = require '../lib/query/QueryManager'
@@ -49,7 +49,7 @@ describe 'QueryManager', ->
 
     step = focus =>
       @queryManager = new QueryManager {@adapter, @cacheManager, @dataSources, @identity, @receiver}
-      done()
+      @queryManager.init done
 
     @cacheManager.importDataSources @dataSources, step()
     @cacheManager.importCacheConfig @cacheConfig, step()
@@ -60,6 +60,5 @@ describe 'QueryManager', ->
     @cache.clear()
 
   it 'should get all users', (done) ->
-    @queryManager.ready =>
-      @collector.history.length.should.eql 1
-      done()
+    @collector.history.length.should.eql 1
+    done()

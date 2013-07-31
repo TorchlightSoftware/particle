@@ -1,7 +1,7 @@
 Relcache = require 'relcache'
-logger = require 'ale'
+logger = require 'torch'
 {focus} = require 'qi'
-{sample} = require 'torch'
+{sample} = require 'ale'
 {EventEmitter} = require 'events'
 _ = require 'lodash'
 

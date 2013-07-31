@@ -1,5 +1,5 @@
 _ = require 'lodash'
-logger = require 'ale'
+logger = require 'torch'
 {EventEmitter} = require 'events'
 {Readable} = require 'stream'
 
@@ -20,7 +20,7 @@ class MockStream extends Readable
   send: (event) ->
     process.nextTick =>
       #logger.grey 'sending:'.blue, event
-      @push event
+      @push event if @_allowed(event)
 
   _allowed: (record) ->
     return true unless @idSet?

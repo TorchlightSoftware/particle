@@ -1,25 +1,33 @@
 _ = require 'lodash'
-logger = require 'ale'
 {EventEmitter} = require 'events'
-{focus} = require 'qi'
 
 QueryWriter = require './QueryWriter'
 readyMixin = require '../mixins/ready'
+debugMixin = require '../mixins/debug'
 
 class QueryManager extends EventEmitter
 
-  constructor: ({@adapter, @cacheManager, @identity, @dataSources, @receiver}) ->
+  #{@adapter, @cacheManager, @identity, @dataSources, @receiver, @onDebug}
+  constructor: (args) ->
     super
+    _.merge @, args
     readyMixin.call(@)
+    debugMixin.call(@)
 
     @writers = {}
+
+  init: (done) ->
 
     for name, source of @dataSources
       source = _.merge {}, source, {name}
 
-      #logger.grey 'new QueryWriter:'.cyan, {adapter: @adapter?, cm: @cacheManager?, @identity, source, @receiver}
-      @writers[name] = new QueryWriter {@adapter, @cacheManager, @identity, source, @receiver}
+      @writers[name] = new QueryWriter {@adapter, @cacheManager, @identity, sourceName: name, source, @receiver, @onDebug}
       @writers[name].ready @checkReady.bind(@)
+
+    @debug "Registration waiting for payloads from #{_.keys(@dataSources).length} queries.".magenta
+    @ready done if done
+    @ready =>
+      @debug "Registration completed.".magenta
 
   checkReady: ->
     ready = _.every @writers, (w) -> w.status is 'ready'

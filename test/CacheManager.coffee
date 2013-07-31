@@ -1,7 +1,7 @@
 should = require 'should'
 Relcache = require 'relcache'
-logger = require 'ale'
-{sample} = require 'torch'
+logger = require 'torch'
+{sample} = require 'ale'
 
 MockAdapter = require '../lib/adapters/mock'
 CacheManager = require '../lib/cache/CacheManager'

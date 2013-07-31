@@ -1,6 +1,6 @@
 should = require 'should'
 Relcache = require 'relcache'
-logger = require 'ale'
+logger = require 'torch'
 
 convertToValue = require '../lib/query/convertToValue'
 

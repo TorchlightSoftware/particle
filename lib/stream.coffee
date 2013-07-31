@@ -1,5 +1,5 @@
 Relcache = require 'relcache'
-logger = require 'ale'
+{EventEmitter} = require 'events'
 
 CacheManager = require './cache/CacheManager'
 QueryManager = require './query/QueryManager'
@@ -8,12 +8,15 @@ Server = require './server'
 {empty, _} = require './util'
 filterPayload = require './filterPayload'
 filterDelta = require './filterDelta'
+debugMixin = require './mixins/debug'
 
-class Stream
+class Stream extends EventEmitter
   listeners: []
   policy: {}
 
   constructor: (policy) ->
+    @onDebug = policy.onDebug
+    debugMixin.call(@)
 
     @queryManagers = []
 
@@ -24,11 +27,10 @@ class Stream
     @policy.identityLookup or= (identity, done) -> done null, identity
 
     @cache = new Relcache
-    @cacheManager = new CacheManager {adapter: @policy.adapter, @cache}
+    @cacheManager = new CacheManager {adapter: @policy.adapter, @cache, @onDebug}
     @cacheManager.importCacheConfig @policy.cache
     @cacheManager.importDataSources @policy.dataSources
 
-    @debug = policy.onDebug or ->
     @error = @policy.onError or console.error
 
   init: (server, options) ->
@@ -37,35 +39,34 @@ class Stream
 
   register: (identity, receive, done) ->
 
-    @debug 'Registering.', {identity}
+    @debug 'Registering.'.yellow, {identity}
 
     # lookup additional identifying information
     @policy.identityLookup identity, (err, finalIdentity) =>
       return done err if err
       _.extend identity, finalIdentity
-      @debug 'Completed identity lookup.', {err, identity}
+      @debug 'Completed identity lookup.'.yellow, {err, identity}
 
       # send a manifest to the client
       manifest = {timestamp: new Date}
       for name, source of @policy.dataSources
         manifest[name] = source.manifest
       receive 'manifest', manifest
-      @debug 'Sent manifest.', {manifest}
+      @debug 'Sent manifest, waiting for queries.'.yellow, {manifest}
 
-      inputs = {
+      qm = new QueryManager {
         adapter: @policy.adapter
         cacheManager: @cacheManager
         identity: identity
         dataSources: @policy.dataSources
         receiver: receive
+        onDebug: @onDebug
       }
-
-      qm = new QueryManager inputs
       @queryManagers.push qm
-      qm.ready done
+      qm.init done
 
   disconnect: ->
-    @server.disconnect() if @server
-    @policy.disconnect()
+    @server?.disconnect()
+    @policy?.disconnect()
 
 module.exports = Stream

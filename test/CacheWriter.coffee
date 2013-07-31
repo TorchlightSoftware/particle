@@ -1,6 +1,6 @@
 Relcache = require 'relcache'
-logger = require 'ale'
-{sample} = require 'torch'
+logger = require 'torch'
+{sample} = require 'ale'
 
 MockAdapter = require '../lib/adapters/mock'
 CacheWriter = require '../lib/cache/CacheWriter'

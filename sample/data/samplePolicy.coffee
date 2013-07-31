@@ -1,7 +1,6 @@
 MockAdapter = require '../../lib/adapters/mock'
 mockSourceData = require './mockSourceData'
 adapter = new MockAdapter mockSourceData
-logger = require 'ale'
 
 module.exports =
 
@@ -10,7 +9,7 @@ module.exports =
   # Normal use case, use mongo-watch to obtain query streams.
   #adapter: new require('MongoWatch')
 
-  #onDebug: logger.grey
+  #onDebug: console.log
 
   # Identity Lookup, performed once upon registration.
   #identityLookup: (identity, done) ->

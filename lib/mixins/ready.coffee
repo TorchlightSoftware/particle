@@ -8,6 +8,9 @@ module.exports = ->
     @error = err
     @status = 'error'
 
+  @onError = (args...) ->
+    @emit 'error', args...
+
   @ready = (done) ->
     if @status is 'ready'
       process.nextTick(done)

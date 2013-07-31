@@ -1,24 +1,27 @@
 _ = require 'lodash'
-logger = require 'ale'
 {EventEmitter} = require 'events'
-{focus} = require 'qi'
 
 CacheWriter = require './CacheWriter'
 extractKeys = require './extractKeys'
 extractDependencies = require './extractDependencies'
 readyMixin = require '../mixins/ready'
+debugMixin = require '../mixins/debug'
 
 class CacheManager extends EventEmitter
 
-  constructor: ({@adapter, @cache}) ->
+  #{@adapter, @cache, @onDebug}
+  constructor: (args) ->
+    _.merge @, args
     super
     readyMixin.call(@)
+    debugMixin.call(@)
 
     @writers = {}
 
     # forward cache events
     @onChange = @emit.bind(@, 'change')
     @cache.on 'change', @onChange
+    @on 'change', @debug.bind(@, 'Cache modified.'.red)
 
     # forward query methods to cache
     @get = @cache.get.bind(@cache)
@@ -28,6 +31,7 @@ class CacheManager extends EventEmitter
   importKeys: (collName, keys, done) ->
     return process.nextTick(done) if _.isEmpty keys
 
+    @debug 'importing keys into cache:'.red, {collName, keys}
     @status = 'waiting'
 
     # do we have a writer for that collection?
@@ -37,7 +41,7 @@ class CacheManager extends EventEmitter
     else
 
       # add a new query
-      @writers[collName] = new CacheWriter {collName, @adapter, @cache}
+      @writers[collName] = new CacheWriter {collName, @adapter, @cache, @onDebug}
       @writers[collName].importKeys keys
       @writers[collName].on 'ready', @checkReady.bind(@)
 
@@ -69,6 +73,7 @@ class CacheManager extends EventEmitter
 
       fullKeys = _.map keys, (k) -> "#{collection}.#{k}"
 
+      @debug 'watching keys for datasource'.red, {name, keys, deps}
       do (name, keys, deps) =>
 
         # forward events that relate to this dataSource

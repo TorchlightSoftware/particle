@@ -1,4 +1,3 @@
-logger = require 'ale'
 _ = require 'lodash'
 
 {getType, addTo, box} = require '../util'
@@ -20,10 +19,10 @@ combine = (results, op) ->
   _.reduce results, (l, r) ->
     op l, r
 
-module.exports = (cache, identity, collection, query) ->
+module.exports = (cache, identity, collection, query, onDebug) ->
   convert = convertToValue.bind(null, cache, identity)
   return undefined unless getType(query) is 'Object'
-
+  onDebug ?= ->
 
   walk = (op, terms) ->
 
@@ -34,7 +33,7 @@ module.exports = (cache, identity, collection, query) ->
     if op.match /^\$/
 
       sub = for k, v of terms
-        #logger.blue 'digging:', {k, v}
+        onDebug 'digging:'.white, {k, v}
         walk k, v
 
       switch op
@@ -43,8 +42,6 @@ module.exports = (cache, identity, collection, query) ->
 
         when '$or'
           idSet = combine sub, _.union
-
-      #logger.cyan {op, combined: idSet}
 
     else
 
@@ -73,15 +70,15 @@ module.exports = (cache, identity, collection, query) ->
       # otherwise it's a regular equality query
       else
         value = convert(terms)
-        #logger.grey 'getting:'.yellow, {opKey, value, idKey}
+        onDebug 'getting:'.white, {opKey, value, idKey}
         idSet = cache.get(opKey, value, idKey) or []
 
-      #logger.magenta {original: idSet}
+      onDebug 'original:'.white, idSet
 
     return idSet
 
   # default behavior for the root is an '$and' so evaluate this explicitly
   result = walk '$and', query
-  #logger.magenta {result}
+  onDebug 'result:'.white, result
 
   return result

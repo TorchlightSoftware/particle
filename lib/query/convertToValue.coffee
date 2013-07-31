@@ -1,5 +1,4 @@
 _ = require 'lodash'
-logger = require 'ale'
 
 module.exports = (cache, identity, statement) ->
   return statement unless _.isString statement
