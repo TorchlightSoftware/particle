@@ -2,6 +2,14 @@
 normalizePayload = require './normalizePayload'
 Client = require './client'
 applyOp = require './applyOp'
+#debugMixin = require './mixins/debug'
+logger = require 'torch'
+
+getEventPath = (root, path) ->
+  if path is '.'
+    return root
+  else
+    return "#{root}.#{path}"
 
 class Collector extends EventEmitter
 
@@ -10,6 +18,7 @@ class Collector extends EventEmitter
   constructor: (options={}) ->
     status = 'waiting'
     @data = {}
+    @received = {}
     @identity = options.identity or {}
     @network = options.network or {}
     @debug = options.onDebug or ->
@@ -34,12 +43,8 @@ class Collector extends EventEmitter
       @debug 'Sending new data notification!'
 
       # normalize events and emit specific path changes
-      if event.oplist
-        for op in event.oplist
-          eventName = "#{event.root}.#{op.path}"
-          normEvent = _.merge({}, event, op)
-          delete normEvent.oplist
-          @emit eventName, data, normEvent
+      eventName = getEventPath event.root, event.path
+      @emit eventName, data, event
 
       # respond to constructor based listener
       @onData data, event
@@ -64,30 +69,27 @@ class Collector extends EventEmitter
         @checkReady()
 
       when 'payload'
-        @data[event.root] = _.clone event.data, true
+        applyOp @data, event
+        @emit 'data', @data, event
 
-        # format the data to look like a normal update
-        # only tell listeners about it if we actually got data
-        nm = normalizePayload event
-        if nm.oplist.length > 0
-          @emit 'data', @data, nm
+        if event.origin is 'end payload'
+          @received[event.root] = true
 
         @checkReady()
 
       when 'delta'
         @ready =>
-          @debug "Updating collection '#{event.root}' with '#{event.oplist.map((o)->o.operation).join ','}'."
           applyOp @data, event
           @emit 'data', @data, event
 
   checkReady: ->
-    checkManifest = (data, manifest) ->
+    checkManifest = (received, manifest) ->
       return false unless manifest?
       for name of manifest when name isnt 'timestamp'
-        return false unless data[name]
+        return false unless received[name]
       return true
 
-    ready = checkManifest @data, @manifest
+    ready = checkManifest @received, @manifest
 
     @debug "Checking if we're ready...", {manifest: @manifest?, allReceived: ready}
     @emit 'ready' if ready

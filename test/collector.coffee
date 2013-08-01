@@ -1,125 +1,156 @@
-{inspect} = require 'util'
 should = require 'should'
+_ = require 'lodash'
+{getType} = require 'ale'
+logger = require 'torch'
+{focus} = require 'qi'
+
+{contains} = require '../lib/util'
 {Collector} = require '../'
 mockServer = require '../sample/mockServer'
-_ = require 'lodash'
-{getType} = require '../lib/util'
-logger = require './helpers/logger'
 
 describe 'Collector', ->
 
   it 'should initialize with data', (done) ->
+    step = focus done
+    receivedEvent = step()
+    onReady = step()
 
     # When I register a new client
     @collector = new Collector
-      identity:
-        sessionId: 'foo'
       onRegister: mockServer()
+      #onDebug: logger.grey
 
-    @collector.on 'data', (data, event) ->
+    @collector.once 'data', (data, event) ->
       should.exist event, 'expected event'
-      (getType event.oplist).should.eql 'Array'
-      event.oplist.should.have.length 1
+      receivedEvent()
 
     @collector.register()
 
     # And it should send
     @collector.ready =>
-      should.exist @collector.data.users?.length
-      @collector.data.users.length.should.eql 1
-      done()
+      should.exist @collector.data.visibleUsers?.length
+      @collector.data.visibleUsers.length.should.eql 2
+      onReady()
 
   it 'should receive an update delta', (done) ->
 
     @collector = new Collector
-      identity:
-        sessionId: 'foo'
-
       # When I register a new client
       onRegister: mockServer [
+          origin: 'delta'
+          root: 'myProfile'
+          namespace: 'test.users'
+          timestamp: new Date
           operation: 'set'
-          id: 5
+          _id: 1
           path: 'address.state'
           data: 'Lake Maylie'
         ]
 
     # I should recieve a delta event
-    @collector.on 'data', (data, event) =>
+    deltaTest = (data, event) =>
       should.exist data
       should.exist event
-      should.exist event.root, 'expected root'
 
-      event.root.should.eql 'users'
+      if event.origin is 'delta'
+        should.exist event.root, 'expected root'
 
-      expected =
-        operation: 'set'
-        id: 5
-        path: 'address.state'
-        data: 'Lake Maylie'
+        event.root.should.eql 'myProfile'
 
-      for op in event.oplist
-        done() if _.isEqual op, expected
+        expected =
+          origin: 'delta'
+          root: 'myProfile'
+          namespace: 'test.users'
+          operation: 'set'
+          _id: 1
+          path: 'address.state'
+          data: 'Lake Maylie'
 
+        if contains event, expected
+          @collector.removeListener 'delta', deltaTest
+          done()
+
+    @collector.on 'data', deltaTest
     @collector.register()
 
   it 'should filter events', (done) ->
 
     @collector = new Collector
-      identity:
-        sessionId: 'foo'
-
       # When I register a new client
       onRegister: mockServer [
+          origin: 'delta'
+          root: 'myProfile'
+          namespace: 'test.users'
+          timestamp: new Date
           operation: 'set'
-          id: 5
+          _id: 1
           path: 'address.state'
           data: 'Lake Maylie'
         ]
 
     # I should recieve a delta event
-    @collector.on 'users.address.state', (data, event) =>
+    deltaTest = (data, event) =>
       should.exist data
       should.exist event
-      should.exist event.root, 'expected root'
 
-      event.root.should.eql 'users'
-      event.should.include
-        operation: 'set'
-        id: 5
-        path: 'address.state'
-        data: 'Lake Maylie'
+      if event.origin is 'delta'
+        should.exist event.root, 'expected root'
 
-      done()
+        event.root.should.eql 'myProfile'
 
+        expected =
+          origin: 'delta'
+          root: 'myProfile'
+          namespace: 'test.users'
+          operation: 'set'
+          _id: 1
+          path: 'address.state'
+          data: 'Lake Maylie'
+
+        if contains event, expected
+          @collector.removeListener 'delta', deltaTest
+          done()
+
+    @collector.once 'myProfile.address.state', deltaTest
     @collector.register()
 
   it 'should use wildcard', (done) ->
 
     @collector = new Collector
-      identity:
-        sessionId: 'foo'
-
       # When I register a new client
       onRegister: mockServer [
+          origin: 'delta'
+          root: 'myProfile'
+          namespace: 'test.users'
+          timestamp: new Date
           operation: 'set'
-          id: 5
+          _id: 1
           path: 'address.state'
           data: 'Lake Maylie'
         ]
 
     # I should recieve a delta event
-    @collector.on 'users.address.*', (data, event) =>
+    deltaTest = (data, event) =>
       should.exist data
       should.exist event
-      should.exist event.root, 'expected root'
 
-      event.root.should.eql 'users'
-      event.should.include
-        operation: 'set'
-        id: 5
-        path: 'address.state'
-        data: 'Lake Maylie'
+      if event.origin is 'delta'
+        should.exist event.root, 'expected root'
 
-      done()
+        event.root.should.eql 'myProfile'
 
+        expected =
+          origin: 'delta'
+          root: 'myProfile'
+          namespace: 'test.users'
+          operation: 'set'
+          _id: 1
+          path: 'address.state'
+          data: 'Lake Maylie'
+
+        if contains event, expected
+          @collector.removeListener 'delta', deltaTest
+          done()
+
+    @collector.once 'myProfile.address.*', deltaTest
     @collector.register()
