@@ -1,5 +1,4 @@
 {objInclude, find, _, EventEmitter} = require './util'
-normalizePayload = require './normalizePayload'
 Client = require './client'
 applyOp = require './applyOp'
 #debugMixin = require './mixins/debug'
