@@ -15,12 +15,12 @@ class QueryWriter extends Writable
     readyMixin.call(@)
     debugMixin.call(@)
 
-    @debug 'Waiting for cache manager...'.blue
+    @debug "'#{@sourceName}' waiting for cache manager...".blue
 
     @cacheManager.ready =>
 
       idSet = @_getIdSet()
-      @debug 'Cache ready! Initial idSet:'.blue, idSet
+      @debug "'#{@sourceName}' running... Initial idSet:".blue, idSet
       if _.isArray(idSet) and _.isEmpty(idSet)
         @emit 'ready'
 
