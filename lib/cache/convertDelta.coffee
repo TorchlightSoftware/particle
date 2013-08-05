@@ -58,6 +58,8 @@ module.exports = (event, keys, mapping, onError) ->
         cmd.push target
       commands.push cmd
 
+    when 'noop'
+
     else
       onError 'Particle Cache received unsupported operation:'.red, event
 

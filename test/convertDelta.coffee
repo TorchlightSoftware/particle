@@ -130,6 +130,14 @@ describe 'convertDelta', ->
       commands: [
         ['unset', 'chatsessions._id', 5, 'sessions._id']
       ]
+    ,
+      description: 'noop'
+      delta:
+        timestamp: new Date
+        namespace: 'test.chats'
+        operation: 'noop'
+        origin: 'end payload'
+      commands: []
   ]
 
   for test in tests
