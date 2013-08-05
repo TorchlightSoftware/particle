@@ -5,13 +5,9 @@ logger = require 'torch'
 {EventEmitter} = require 'events'
 #{Server, Db, ObjectID} = require 'mongodb'
 
+limit = require './helpers/limit'
 {Stream} = require '../'
 samplePolicy = require '../sample/data/samplePolicy'
-
-limit = (policy, sources) ->
-  newPolicy = _.clone policy
-  newPolicy.dataSources = _.pick newPolicy.dataSources, sources
-  newPolicy
 
 describe 'Stream', ->
   beforeEach ->
@@ -43,7 +39,7 @@ describe 'Stream', ->
         _id: 1
         operation: 'set'
         path: '.'
-        data: { _id: 1, accountId: 1, name: 'Bob' }
+        data: { _id: 1, accountId: 1, name: 'Bob', email: 'bob@foo.com' }
       }
       jane.should.include {
         origin: 'end payload'
@@ -51,7 +47,7 @@ describe 'Stream', ->
         _id: 2
         operation: 'set'
         path: '.'
-        data: { _id: 2, accountId: 1, name: 'Jane' }
+        data: { _id: 2, accountId: 1, name: 'Jane', email: 'jane@foo.com' }
       }
       done()
 
