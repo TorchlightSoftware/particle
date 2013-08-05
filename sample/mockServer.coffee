@@ -1,36 +1,25 @@
-module.exports = (oplist) ->
+samplePayloads = require './data/samplePayloads'
+
+module.exports = (deltas) ->
 
   (identity, receive, finish) ->
 
     # send manifest
     receive 'manifest', {
-      users:
-        email: true
-        address:
-          state: true
-          zip: true
+      timestamp: new Date
+      myProfile: true,
+      myStuff: true,
+      visibleUsers: { name: true, _id: true }
     }
 
     # send payload
-    receive 'payload', {
-      root: 'users'
-      timestamp: new Date
-      data: [
-        id: 5
-        email: 'graham@daventry.com'
-        address:
-          state: 'Daventry'
-          zip: '07542'
-      ]
-    }
+    for payload in samplePayloads
+      receive 'payload', payload
 
     # send delta
-    if oplist
-      receive 'delta', {
-        root: 'users'
-        timestamp: new Date
-        oplist: oplist
-      }
+    if deltas
+      for delta in deltas
+        receive 'delta', delta
 
     # tell the client we're done
     finish()
