@@ -2,10 +2,11 @@
 {indexContaining, _, getType} = require './util'
 
 module.exports = (dataRoot, {root, path, _id, data, operation}) =>
-  return if operation is 'noop'
 
   # create the collection if it doesn't exist
   dataRoot[root] or= []
+
+  return if operation is 'noop'
 
   # get or create document
   node = _.find dataRoot[root], (n) -> n._id is _id

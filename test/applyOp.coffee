@@ -318,19 +318,13 @@ tests = [
       {_id: 10, name: 'Bob'}
     ]}]}
   ,
-    description: 'noop should do nothing'
-    pre: {users: [
-        _id: 1
-        name: 'Bob'
-    ]}
+    description: 'noop should only create collection'
+    pre: {}
     op:
       root: 'users'
       timestamp: new Date
       operation: 'noop'
-    post: {users: [
-        _id: 1
-        name: 'Bob'
-    ]}
+    post: {users: []}
 ]
 
 describe 'applyOp', ->
