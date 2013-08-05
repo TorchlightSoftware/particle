@@ -317,6 +317,20 @@ tests = [
     post: {users: [{_id: 5, friends: [
       {_id: 10, name: 'Bob'}
     ]}]}
+  ,
+    description: 'noop should do nothing'
+    pre: {users: [
+        _id: 1
+        name: 'Bob'
+    ]}
+    op:
+      root: 'users'
+      timestamp: new Date
+      operation: 'noop'
+    post: {users: [
+        _id: 1
+        name: 'Bob'
+    ]}
 ]
 
 describe 'applyOp', ->

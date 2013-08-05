@@ -2,6 +2,7 @@
 {indexContaining, _, getType} = require './util'
 
 module.exports = (dataRoot, {root, path, _id, data, operation}) =>
+  return if operation is 'noop'
 
   # create the collection if it doesn't exist
   dataRoot[root] or= []
