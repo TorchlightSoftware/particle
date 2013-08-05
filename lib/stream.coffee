@@ -6,8 +6,6 @@ QueryManager = require './query/QueryManager'
 Server = require './server'
 
 {empty, _} = require './util'
-filterPayload = require './filterPayload'
-filterDelta = require './filterDelta'
 debugMixin = require './mixins/debug'
 
 class Stream extends EventEmitter

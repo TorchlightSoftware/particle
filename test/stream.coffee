@@ -43,7 +43,7 @@ describe 'Stream', ->
         _id: 1
         operation: 'set'
         path: '.'
-        data: { _id: 1, accountId: 1, name: 'Bob', email: 'bob@foo.com' }
+        data: { _id: 1, accountId: 1, name: 'Bob' }
       }
       jane.should.include {
         origin: 'end payload'
@@ -51,7 +51,7 @@ describe 'Stream', ->
         _id: 2
         operation: 'set'
         path: '.'
-        data: { _id: 2, accountId: 1, name: 'Jane', email: 'jane@foo.com' }
+        data: { _id: 2, accountId: 1, name: 'Jane' }
       }
       done()
 
