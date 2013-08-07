@@ -7,13 +7,13 @@ require ['particle'], ({Collector}) ->
     return output
 
   collector = new Collector
-    #onDebug: (args...) -> console.log args...
+    onDebug: (args...) -> console.log args...
     identity:
-      sessionId: 'foo'
+      userId: 4
 
-  collector.on 'data', (data, event) ->
+  collector.on 'myProfile.**', (data, event) ->
     #console.log 'got data:', data
-    $('#content').html renderData data.users[0]
+    $('#content').html renderData data.myProfile[0]
 
   collector.register (err) ->
     if err

@@ -46,10 +46,19 @@ expectedData = {
   ]
 }
 
+filteredData = _.clone expectedData
+filteredData.visibleUsers = [
+  { _id: 4, name: 'Bob'}
+  { _id: 5, name: 'Jane'}
+]
+
 {MongoClient, ObjectID} = require 'mongodb'
 
 describe 'Integration', ->
-  afterEach (done) ->
+  beforeEach (done) ->
+    removeTestData mockSourceData, done
+
+  after (done) ->
     removeTestData mockSourceData, done
 
   it 'should work via network', (done) ->
@@ -131,5 +140,5 @@ describe 'Integration', ->
 
         collector.register()
         collector.ready =>
-          collector.data.should.eql expectedData
+          collector.data.should.eql filteredData
           done()

@@ -1,6 +1,6 @@
 dist:
 	@mkdir dist
-	@coffee -o dist -c lib/collector.coffee lib/client.coffee lib/applyOp.coffee lib/normalizePayload.coffee lib/util.coffee lib/main.coffee lib/enums.coffee
+	@coffee -o dist -c lib/collector.coffee lib/client.coffee lib/applyOp.coffee lib/util.coffee lib/main.coffee lib/enums.coffee
 	@node_modules/.bin/lodash exports=commonjs include=find,extend,clone,without,pick,keys,merge -o dist/lodash.js
 
 build: components dist

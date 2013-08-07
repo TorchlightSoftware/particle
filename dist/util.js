@@ -76,6 +76,16 @@
         }
       }
       return null;
+    },
+    box: function(val) {
+      if (val == null) {
+        return [];
+      }
+      if (util.getType(val) === 'Array') {
+        return val;
+      } else {
+        return [val];
+      }
     }
   };
 

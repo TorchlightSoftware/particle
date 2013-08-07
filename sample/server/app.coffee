@@ -1,8 +1,10 @@
 http = require 'http'
 connect = require 'connect'
-logger = require '../../test/helpers/logger'
-{Stream} = require '../..'
+logger = require 'torch'
 {join} = require 'path'
+
+{Stream} = require '../..'
+samplePolicy = require('../data/samplePolicy')()
 
 # serve a static directory and allow connections from anywhere
 app = connect()
@@ -16,34 +18,25 @@ port = 4042
 # listen on port
 server = http.createServer(app).listen port, ->
 
-  stream = new Stream
-    onDebug: logger
-
-    dataSources:
-
-      users:
-
-        payload: # get initial data for this collection
-          (identity, done) ->
-            done null, {data: [], timestamp: new Date}
-
-        delta: # wire up deltas for this collection
-          (identity, listener) ->
-            counter = 0
-
-            sendDelta = ->
-              data =
-                root: 'users'
-                timestamp: new Date
-                oplist: [
-                  operation: 'set'
-                  id: 5
-                  path: 'todoCount'
-                  data: counter++
-                ]
-              listener data
-
-            setInterval sendDelta, 1000
-
+  #samplePolicy.onDebug = logger.grey
+  stream = new Stream samplePolicy
   stream.init server
+  stream.ready ->
+    logger.white stream.cache._cache
+    counter = 0
+
+    collName = 'users'
+    sendDelta = ->
+      data =
+        namespace: "test.#{collName}"
+        origin: 'delta'
+        timestamp: new Date
+        _id: 4
+        operation: 'set'
+        path: 'stuffCount'
+        data: ++counter
+      samplePolicy.adapter.send collName, data
+
+    setInterval sendDelta, 1000
+
   console.log "started server at http://localhost:#{port}/test.html"

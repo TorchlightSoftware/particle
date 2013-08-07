@@ -1,8 +1,6 @@
 {objInclude, find, _, EventEmitter} = require './util'
 Client = require './client'
 applyOp = require './applyOp'
-#debugMixin = require './mixins/debug'
-logger = require 'torch'
 
 getEventPath = (root, path) ->
   if path is '.'

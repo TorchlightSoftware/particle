@@ -367,11 +367,8 @@ Emitter.prototype.hasListeners = function(event){
 
 });
 require.register("component-indexof/index.js", function(exports, require, module){
-
-var indexOf = [].indexOf;
-
 module.exports = function(arr, obj){
-  if (indexOf) return arr.indexOf(obj);
+  if (arr.indexOf) return arr.indexOf(obj);
   for (var i = 0; i < arr.length; ++i) {
     if (arr[i] === obj) return i;
   }
@@ -737,7 +734,7 @@ require.register("LearnBoost-engine.io-client/lib/socket.js", function(exports, 
 var util = require('./util')
   , transports = require('./transports')
   , Emitter = require('./emitter')
-  , debug = require('debug')('engine-client:socket')
+  , debug = require('debug')('engine.io-client:socket')
   , index = require('indexof')
   , parser = require('engine.io-parser');
 
@@ -1292,6 +1289,7 @@ Socket.prototype.onClose = function (reason, desc) {
     setTimeout(function() {
       self.writeBuffer = [];
       self.callbackBuffer = [];
+      self.prevBufferLen = 0;
     }, 0);
 
     // ignore further transport communication
@@ -2037,13 +2035,13 @@ Polling.prototype.doClose = function(){
     self.write([{ type: 'close' }]);
   }
 
-  if (this.open) {
+  if ('open' == this.readyState) {
     debug('transport open - closing');
     close();
   } else {
     // in case we're trying to close while
     // handshaking is in progress (GH-164)
-    debug('transport not open - defering close');
+    debug('transport not open - deferring close');
     this.once('open', close);
   }
 };
@@ -4051,7 +4049,7 @@ require.register("particle/dist/main.js", function(exports, require, module){
 require.register("particle/dist/lodash.js", function(exports, require, module){
 /**
  * @license
- * Lo-Dash 1.2.1 (Custom Build) <http://lodash.com/>
+ * Lo-Dash 1.3.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash exports="commonjs" include="find,extend,clone,without,pick,keys,merge" -o dist/lodash.js`
  * Copyright 2012-2013 The Dojo Foundation <http://dojofoundation.org/>
  * Based on Underscore.js 1.4.4 <http://underscorejs.org/>
@@ -4063,14 +4061,9 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
   /** Used as a safe reference for `undefined` in pre ES5 environments */
   var undefined;
 
-  /** Detect free variable `exports` */
-  var freeExports = typeof exports == 'object' && exports;
-
-  /** Detect free variable `global`, from Node.js or Browserified code, and use it as `window` */
-  var freeGlobal = typeof global == 'object' && global;
-  if (freeGlobal.global === freeGlobal || freeGlobal.window === freeGlobal) {
-    window = freeGlobal;
-  }
+  /** Used to pool arrays and objects used internally */
+  var arrayPool = [],
+      objectPool = [];
 
   /** Used to generate unique IDs */
   var idCounter = 0;
@@ -4082,7 +4075,10 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
   var keyPrefix = +new Date + '';
 
   /** Used as the size when optimizations are enabled for large arrays */
-  var largeArraySize = 200;
+  var largeArraySize = 75;
+
+  /** Used as the max size of the `arrayPool` and `objectPool` */
+  var maxPoolSize = 40;
 
   /** Used to match empty string literals in compiled template source */
   var reEmptyStringLeading = /\b__p \+= '';/g,
@@ -4103,6 +4099,9 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
 
   /** Used to match "interpolate" template delimiters */
   var reInterpolate = /<%=([\s\S]+?)%>/g;
+
+  /** Used to detect functions containing a `this` reference */
+  var reThis = (reThis = /\bthis\b/) && reThis.test(function() { return this; }) && reThis;
 
   /** Used to ensure capturing order of template delimiters */
   var reNoMatch = /($^)/;
@@ -4127,6 +4126,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
       arrayClass = '[object Array]',
       boolClass = '[object Boolean]',
       dateClass = '[object Date]',
+      errorClass = '[object Error]',
       funcClass = '[object Function]',
       numberClass = '[object Number]',
       objectClass = '[object Object]',
@@ -4162,18 +4162,254 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
     '\u2029': 'u2029'
   };
 
+  /** Detect free variable `exports` */
+  var freeExports = objectTypes[typeof exports] && exports;
+
+  /** Detect free variable `global`, from Node.js or Browserified code, and use it as `window` */
+  var freeGlobal = objectTypes[typeof global] && global;
+  if (freeGlobal && (freeGlobal.global === freeGlobal || freeGlobal.window === freeGlobal)) {
+    window = freeGlobal;
+  }
+
   /*--------------------------------------------------------------------------*/
 
-  /** Used for `Array` and `Object` method references */
-  var arrayRef = Array(),
-      objectRef = Object();
+  /**
+   * A basic implementation of `_.indexOf` without support for binary searches
+   * or `fromIndex` constraints.
+   *
+   * @private
+   * @param {Array} array The array to search.
+   * @param {Mixed} value The value to search for.
+   * @param {Number} [fromIndex=0] The index to search from.
+   * @returns {Number} Returns the index of the matched value or `-1`.
+   */
+  function basicIndexOf(array, value, fromIndex) {
+    var index = (fromIndex || 0) - 1,
+        length = array.length;
+
+    while (++index < length) {
+      if (array[index] === value) {
+        return index;
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * An implementation of `_.contains` for cache objects that mimics the return
+   * signature of `_.indexOf` by returning `0` if the value is found, else `-1`.
+   *
+   * @private
+   * @param {Object} cache The cache object to inspect.
+   * @param {Mixed} value The value to search for.
+   * @returns {Number} Returns `0` if `value` is found, else `-1`.
+   */
+  function cacheIndexOf(cache, value) {
+    var type = typeof value;
+    cache = cache.cache;
+
+    if (type == 'boolean' || value == null) {
+      return cache[value];
+    }
+    if (type != 'number' && type != 'string') {
+      type = 'object';
+    }
+    var key = type == 'number' ? value : keyPrefix + value;
+    cache = cache[type] || (cache[type] = {});
+
+    return type == 'object'
+      ? (cache[key] && basicIndexOf(cache[key], value) > -1 ? 0 : -1)
+      : (cache[key] ? 0 : -1);
+  }
+
+  /**
+   * Adds a given `value` to the corresponding cache object.
+   *
+   * @private
+   * @param {Mixed} value The value to add to the cache.
+   */
+  function cachePush(value) {
+    var cache = this.cache,
+        type = typeof value;
+
+    if (type == 'boolean' || value == null) {
+      cache[value] = true;
+    } else {
+      if (type != 'number' && type != 'string') {
+        type = 'object';
+      }
+      var key = type == 'number' ? value : keyPrefix + value,
+          typeCache = cache[type] || (cache[type] = {});
+
+      if (type == 'object') {
+        if ((typeCache[key] || (typeCache[key] = [])).push(value) == this.array.length) {
+          cache[type] = false;
+        }
+      } else {
+        typeCache[key] = true;
+      }
+    }
+  }
+
+  /**
+   * Creates a cache object to optimize linear searches of large arrays.
+   *
+   * @private
+   * @param {Array} [array=[]] The array to search.
+   * @returns {Null|Object} Returns the cache object or `null` if caching should not be used.
+   */
+  function createCache(array) {
+    var index = -1,
+        length = array.length;
+
+    var cache = getObject();
+    cache['false'] = cache['null'] = cache['true'] = cache['undefined'] = false;
+
+    var result = getObject();
+    result.array = array;
+    result.cache = cache;
+    result.push = cachePush;
+
+    while (++index < length) {
+      result.push(array[index]);
+    }
+    return cache.object === false
+      ? (releaseObject(result), null)
+      : result;
+  }
+
+  /**
+   * Gets an array from the array pool or creates a new one if the pool is empty.
+   *
+   * @private
+   * @returns {Array} The array from the pool.
+   */
+  function getArray() {
+    return arrayPool.pop() || [];
+  }
+
+  /**
+   * Gets an object from the object pool or creates a new one if the pool is empty.
+   *
+   * @private
+   * @returns {Object} The object from the pool.
+   */
+  function getObject() {
+    return objectPool.pop() || {
+      'args': '',
+      'array': null,
+      'bottom': '',
+      'cache': null,
+      'false': false,
+      'firstArg': '',
+      'init': '',
+      'loop': '',
+      'null': false,
+      'number': null,
+      'object': null,
+      'push': null,
+      'shadowedProps': null,
+      'string': null,
+      'top': '',
+      'true': false,
+      'undefined': false,
+      'useHas': false,
+      'useKeys': false
+    };
+  }
+
+  /**
+   * Checks if `value` is a DOM node in IE < 9.
+   *
+   * @private
+   * @param {Mixed} value The value to check.
+   * @returns {Boolean} Returns `true` if the `value` is a DOM node, else `false`.
+   */
+  function isNode(value) {
+    // IE < 9 presents DOM nodes as `Object` objects except they have `toString`
+    // methods that are `typeof` "string" and still can coerce nodes to strings
+    return typeof value.toString != 'function' && typeof (value + '') == 'string';
+  }
+
+  /**
+   * Releases the given `array` back to the array pool.
+   *
+   * @private
+   * @param {Array} [array] The array to release.
+   */
+  function releaseArray(array) {
+    array.length = 0;
+    if (arrayPool.length < maxPoolSize) {
+      arrayPool.push(array);
+    }
+  }
+
+  /**
+   * Releases the given `object` back to the object pool.
+   *
+   * @private
+   * @param {Object} [object] The object to release.
+   */
+  function releaseObject(object) {
+    var cache = object.cache;
+    if (cache) {
+      releaseObject(cache);
+    }
+    object.array = object.cache =object.object = object.number = object.string =null;
+    if (objectPool.length < maxPoolSize) {
+      objectPool.push(object);
+    }
+  }
+
+  /**
+   * Slices the `collection` from the `start` index up to, but not including,
+   * the `end` index.
+   *
+   * Note: This function is used, instead of `Array#slice`, to support node lists
+   * in IE < 9 and to ensure dense arrays are returned.
+   *
+   * @private
+   * @param {Array|Object|String} collection The collection to slice.
+   * @param {Number} start The start index.
+   * @param {Number} end The end index.
+   * @returns {Array} Returns the new array.
+   */
+  function slice(array, start, end) {
+    start || (start = 0);
+    if (typeof end == 'undefined') {
+      end = array ? array.length : 0;
+    }
+    var index = -1,
+        length = end - start || 0,
+        result = Array(length < 0 ? 0 : length);
+
+    while (++index < length) {
+      result[index] = array[start + index];
+    }
+    return result;
+  }
+
+  /*--------------------------------------------------------------------------*/
+
+  /**
+   * Used for `Array` method references.
+   *
+   * Normally `Array.prototype` would suffice, however, using an array literal
+   * avoids issues in Narwhal.
+   */
+  var arrayRef = [];
+
+  /** Used for native method references */
+  var errorProto = Error.prototype,
+      objectProto = Object.prototype,
+      stringProto = String.prototype;
 
   /** Used to restore the original `_` reference in `noConflict` */
   var oldDash = window._;
 
   /** Used to detect if a method is native */
   var reNative = RegExp('^' +
-    String(objectRef.valueOf)
+    String(objectProto.valueOf)
       .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
       .replace(/valueOf|for [^\]]+/g, '.+?') + '$'
   );
@@ -4183,14 +4419,17 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
       clearTimeout = window.clearTimeout,
       concat = arrayRef.concat,
       floor = Math.floor,
+      fnToString = Function.prototype.toString,
       getPrototypeOf = reNative.test(getPrototypeOf = Object.getPrototypeOf) && getPrototypeOf,
-      hasOwnProperty = objectRef.hasOwnProperty,
+      hasOwnProperty = objectProto.hasOwnProperty,
       push = arrayRef.push,
+      propertyIsEnumerable = objectProto.propertyIsEnumerable,
       setTimeout = window.setTimeout,
-      toString = objectRef.toString;
+      toString = objectProto.toString;
 
   /* Native method shortcuts for methods with the same name as other `lodash` methods */
   var nativeBind = reNative.test(nativeBind = toString.bind) && nativeBind,
+      nativeCreate = reNative.test(nativeCreate =  Object.create) && nativeCreate,
       nativeIsArray = reNative.test(nativeIsArray = Array.isArray) && nativeIsArray,
       nativeIsFinite = window.isFinite,
       nativeIsNaN = window.isNaN,
@@ -4209,10 +4448,30 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
   ctorByClass[arrayClass] = Array;
   ctorByClass[boolClass] = Boolean;
   ctorByClass[dateClass] = Date;
+  ctorByClass[funcClass] = Function;
   ctorByClass[objectClass] = Object;
   ctorByClass[numberClass] = Number;
   ctorByClass[regexpClass] = RegExp;
   ctorByClass[stringClass] = String;
+
+  /** Used to avoid iterating non-enumerable properties in IE < 9 */
+  var nonEnumProps = {};
+  nonEnumProps[arrayClass] = nonEnumProps[dateClass] = nonEnumProps[numberClass] = { 'constructor': true, 'toLocaleString': true, 'toString': true, 'valueOf': true };
+  nonEnumProps[boolClass] = nonEnumProps[stringClass] = { 'constructor': true, 'toString': true, 'valueOf': true };
+  nonEnumProps[errorClass] = nonEnumProps[funcClass] = nonEnumProps[regexpClass] = { 'constructor': true, 'toString': true };
+  nonEnumProps[objectClass] = { 'constructor': true };
+
+  (function() {
+    var length = shadowedProps.length;
+    while (length--) {
+      var prop = shadowedProps[length];
+      for (var className in nonEnumProps) {
+        if (hasOwnProperty.call(nonEnumProps, className) && !hasOwnProperty.call(nonEnumProps[className], prop)) {
+          nonEnumProps[className][prop] = false;
+        }
+      }
+    }
+  }());
 
   /*--------------------------------------------------------------------------*/
 
@@ -4235,8 +4494,8 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    * `invoke`, `keys`, `map`, `max`, `memoize`, `merge`, `min`, `object`, `omit`,
    * `once`, `pairs`, `partial`, `partialRight`, `pick`, `pluck`, `push`, `range`,
    * `reject`, `rest`, `reverse`, `shuffle`, `slice`, `sort`, `sortBy`, `splice`,
-   * `tap`, `throttle`, `times`, `toArray`, `union`, `uniq`, `unshift`, `unzip`,
-   * `values`, `where`, `without`, `wrap`, and `zip`
+   * `tap`, `throttle`, `times`, `toArray`, `transform`, `union`, `uniq`, `unshift`,
+   * `unzip`, `values`, `where`, `without`, `wrap`, and `zip`
    *
    * The non-chainable wrapper functions are:
    * `clone`, `cloneDeep`, `contains`, `escape`, `every`, `find`, `has`,
@@ -4252,6 +4511,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    *
    * @name _
    * @constructor
+   * @alias chain
    * @category Chaining
    * @param {Mixed} value The value to wrap in a `lodash` instance.
    * @returns {Object} Returns a `lodash` instance.
@@ -4314,6 +4574,15 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
     support.argsClass = isArguments(arguments);
 
     /**
+     * Detect if `name` or `message` properties of `Error.prototype` are
+     * enumerable by default. (IE < 9, Safari < 5.1)
+     *
+     * @memberOf _.support
+     * @type Boolean
+     */
+    support.enumErrorProps = propertyIsEnumerable.call(errorProto, 'message') || propertyIsEnumerable.call(errorProto, 'name');
+
+    /**
      * Detect if `prototype` properties are enumerable by default.
      *
      * Firefox < 3.6, Opera > 9.50 - Opera < 11.60, and Safari < 5.1
@@ -4324,7 +4593,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
      * @memberOf _.support
      * @type Boolean
      */
-    support.enumPrototypes = ctor.propertyIsEnumerable('prototype');
+    support.enumPrototypes = propertyIsEnumerable.call(ctor, 'prototype');
 
     /**
      * Detect if `Function#bind` exists and is inferred to be fast (all but V8).
@@ -4405,77 +4674,80 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
     (obj.init) +
     ';\nif (!iterable) return result;\n' +
     (obj.top) +
-    ';\n';
-     if (obj.arrays) {
-    __p += 'var length = iterable.length; index = -1;\nif (' +
-    (obj.arrays) +
+    ';';
+     if (obj.array) {
+    __p += '\nvar length = iterable.length; index = -1;\nif (' +
+    (obj.array) +
     ') {  ';
      if (support.unindexedChars) {
     __p += '\n  if (isString(iterable)) {\n    iterable = iterable.split(\'\')\n  }  ';
      }
     __p += '\n  while (++index < length) {\n    ' +
     (obj.loop) +
-    '\n  }\n}\nelse {  ';
-      } else if (support.nonEnumArgs) {
+    ';\n  }\n}\nelse {  ';
+     } else if (support.nonEnumArgs) {
     __p += '\n  var length = iterable.length; index = -1;\n  if (length && isArguments(iterable)) {\n    while (++index < length) {\n      index += \'\';\n      ' +
     (obj.loop) +
-    '\n    }\n  } else {  ';
+    ';\n    }\n  } else {  ';
      }
 
      if (support.enumPrototypes) {
     __p += '\n  var skipProto = typeof iterable == \'function\';\n  ';
      }
 
+     if (support.enumErrorProps) {
+    __p += '\n  var skipErrorProps = iterable === errorProto || iterable instanceof Error;\n  ';
+     }
+
+        var conditions = [];    if (support.enumPrototypes) { conditions.push('!(skipProto && index == "prototype")'); }    if (support.enumErrorProps)  { conditions.push('!(skipErrorProps && (index == "message" || index == "name"))'); }
+
      if (obj.useHas && obj.useKeys) {
-    __p += '\n  var ownIndex = -1,\n      ownProps = objectTypes[typeof iterable] ? keys(iterable) : [],\n      length = ownProps.length;\n\n  while (++ownIndex < length) {\n    index = ownProps[ownIndex];\n    ';
-     if (support.enumPrototypes) {
-    __p += 'if (!(skipProto && index == \'prototype\')) {\n  ';
-     }
-    __p += 
-    (obj.loop);
-     if (support.enumPrototypes) {
-    __p += '}\n';
-     }
-    __p += '  }  ';
-     } else {
-    __p += '\n  for (index in iterable) {';
-        if (support.enumPrototypes || obj.useHas) {
-    __p += '\n    if (';
-          if (support.enumPrototypes) {
-    __p += '!(skipProto && index == \'prototype\')';
-     }      if (support.enumPrototypes && obj.useHas) {
-    __p += ' && ';
-     }      if (obj.useHas) {
-    __p += 'hasOwnProperty.call(iterable, index)';
-     }
-    __p += ') {    ';
+    __p += '\n  var ownIndex = -1,\n      ownProps = objectTypes[typeof iterable] && keys(iterable),\n      length = ownProps ? ownProps.length : 0;\n\n  while (++ownIndex < length) {\n    index = ownProps[ownIndex];\n';
+        if (conditions.length) {
+    __p += '    if (' +
+    (conditions.join(' && ')) +
+    ') {\n  ';
      }
     __p += 
     (obj.loop) +
     ';    ';
-     if (support.enumPrototypes || obj.useHas) {
+     if (conditions.length) {
+    __p += '\n    }';
+     }
+    __p += '\n  }  ';
+     } else {
+    __p += '\n  for (index in iterable) {\n';
+        if (obj.useHas) { conditions.push("hasOwnProperty.call(iterable, index)"); }    if (conditions.length) {
+    __p += '    if (' +
+    (conditions.join(' && ')) +
+    ') {\n  ';
+     }
+    __p += 
+    (obj.loop) +
+    ';    ';
+     if (conditions.length) {
     __p += '\n    }';
      }
     __p += '\n  }    ';
      if (support.nonEnumShadows) {
-    __p += '\n\n  var ctor = iterable.constructor;\n      ';
-     for (var k = 0; k < 7; k++) {
-    __p += '\n  index = \'' +
+    __p += '\n\n  if (iterable !== objectProto) {\n    var ctor = iterable.constructor,\n        isProto = iterable === (ctor && ctor.prototype),\n        className = iterable === stringProto ? stringClass : iterable === errorProto ? errorClass : toString.call(iterable),\n        nonEnum = nonEnumProps[className];\n      ';
+     for (k = 0; k < 7; k++) {
+    __p += '\n    index = \'' +
     (obj.shadowedProps[k]) +
-    '\';\n  if (';
-          if (obj.shadowedProps[k] == 'constructor') {
-    __p += '!(ctor && ctor.prototype === iterable) && ';
-          }
-    __p += 'hasOwnProperty.call(iterable, index)) {\n    ' +
+    '\';\n    if ((!(isProto && nonEnum[index]) && hasOwnProperty.call(iterable, index))';
+            if (!obj.useHas) {
+    __p += ' || (!nonEnum[index] && iterable[index] !== objectProto[index])';
+     }
+    __p += ') {\n      ' +
     (obj.loop) +
-    '\n  }      ';
+    ';\n    }      ';
+     }
+    __p += '\n  }    ';
      }
 
      }
 
-     }
-
-     if (obj.arrays || support.nonEnumArgs) {
+     if (obj.array || support.nonEnumArgs) {
     __p += '\n}';
      }
     __p += 
@@ -4503,156 +4775,24 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
   var eachIteratorOptions = {
     'args': 'collection, callback, thisArg',
     'top': "callback = callback && typeof thisArg == 'undefined' ? callback : lodash.createCallback(callback, thisArg)",
-    'arrays': "typeof length == 'number'",
+    'array': "typeof length == 'number'",
     'loop': 'if (callback(iterable[index], index, collection) === false) return result'
   };
 
   /** Reusable iterator options for `forIn` and `forOwn` */
   var forOwnIteratorOptions = {
     'top': 'if (!objectTypes[typeof iterable]) return result;\n' + eachIteratorOptions.top,
-    'arrays': false
+    'array': false
   };
 
   /*--------------------------------------------------------------------------*/
-
-  /**
-   * Creates a function optimized to search large arrays for a given `value`,
-   * starting at `fromIndex`, using strict equality for comparisons, i.e. `===`.
-   *
-   * @private
-   * @param {Array} array The array to search.
-   * @param {Mixed} value The value to search for.
-   * @returns {Boolean} Returns `true`, if `value` is found, else `false`.
-   */
-  function cachedContains(array) {
-    var length = array.length,
-        isLarge = length >= largeArraySize;
-
-    if (isLarge) {
-      var cache = {},
-          index = -1;
-
-      while (++index < length) {
-        var key = keyPrefix + array[index];
-        (cache[key] || (cache[key] = [])).push(array[index]);
-      }
-    }
-    return function(value) {
-      if (isLarge) {
-        var key = keyPrefix + value;
-        return  cache[key] && indexOf(cache[key], value) > -1;
-      }
-      return indexOf(array, value) > -1;
-    }
-  }
-
-  /**
-   * Used by `_.max` and `_.min` as the default `callback` when a given
-   * `collection` is a string value.
-   *
-   * @private
-   * @param {String} value The character to inspect.
-   * @returns {Number} Returns the code unit of given character.
-   */
-  function charAtCallback(value) {
-    return value.charCodeAt(0);
-  }
-
-  /**
-   * Used by `sortBy` to compare transformed `collection` values, stable sorting
-   * them in ascending order.
-   *
-   * @private
-   * @param {Object} a The object to compare to `b`.
-   * @param {Object} b The object to compare to `a`.
-   * @returns {Number} Returns the sort order indicator of `1` or `-1`.
-   */
-  function compareAscending(a, b) {
-    var ai = a.index,
-        bi = b.index;
-
-    a = a.criteria;
-    b = b.criteria;
-
-    // ensure a stable sort in V8 and other engines
-    // http://code.google.com/p/v8/issues/detail?id=90
-    if (a !== b) {
-      if (a > b || typeof a == 'undefined') {
-        return 1;
-      }
-      if (a < b || typeof b == 'undefined') {
-        return -1;
-      }
-    }
-    return ai < bi ? -1 : 1;
-  }
-
-  /**
-   * Creates a function that, when called, invokes `func` with the `this` binding
-   * of `thisArg` and prepends any `partialArgs` to the arguments passed to the
-   * bound function.
-   *
-   * @private
-   * @param {Function|String} func The function to bind or the method name.
-   * @param {Mixed} [thisArg] The `this` binding of `func`.
-   * @param {Array} partialArgs An array of arguments to be partially applied.
-   * @param {Object} [idicator] Used to indicate binding by key or partially
-   *  applying arguments from the right.
-   * @returns {Function} Returns the new bound function.
-   */
-  function createBound(func, thisArg, partialArgs, indicator) {
-    var isFunc = isFunction(func),
-        isPartial = !partialArgs,
-        key = thisArg;
-
-    // juggle arguments
-    if (isPartial) {
-      var rightIndicator = indicator;
-      partialArgs = thisArg;
-    }
-    else if (!isFunc) {
-      if (!indicator) {
-        throw new TypeError;
-      }
-      thisArg = func;
-    }
-
-    function bound() {
-      // `Function#bind` spec
-      // http://es5.github.com/#x15.3.4.5
-      var args = arguments,
-          thisBinding = isPartial ? this : thisArg;
-
-      if (!isFunc) {
-        func = thisArg[key];
-      }
-      if (partialArgs.length) {
-        args = args.length
-          ? (args = nativeSlice.call(args), rightIndicator ? args.concat(partialArgs) : partialArgs.concat(args))
-          : partialArgs;
-      }
-      if (this instanceof bound) {
-        // ensure `new bound` is an instance of `func`
-        noop.prototype = func.prototype;
-        thisBinding = new noop;
-        noop.prototype = null;
-
-        // mimic the constructor's `return` behavior
-        // http://es5.github.com/#x13.2.2
-        var result = func.apply(thisBinding, args);
-        return isObject(result) ? result : thisBinding;
-      }
-      return func.apply(thisBinding, args);
-    }
-    return bound;
-  }
 
   /**
    * Creates compiled iteration functions.
    *
    * @private
    * @param {Object} [options1, options2, ...] The compile options object(s).
-   *  arrays - A string of code to determine if the iterable is an array or array-like.
+   *  array - A string of code to determine if the iterable is an array or array-like.
    *  useHas - A boolean to specify using `hasOwnProperty` checks in the object loop.
    *  useKeys - A boolean to specify using `_.keys` for own property iteration.
    *  args - A string of comma separated arguments the iteration function will accept.
@@ -4662,18 +4802,15 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    * @returns {Function} Returns the compiled function.
    */
   function createIterator() {
-    var data = {
-      // data properties
-      'shadowedProps': shadowedProps,
-      // iterator options
-      'arrays': 'isArray(iterable)',
-      'bottom': '',
-      'init': 'iterable',
-      'loop': '',
-      'top': '',
-      'useHas': true,
-      'useKeys': !!keys
-    };
+    var data = getObject();
+
+    // data properties
+    data.shadowedProps = shadowedProps;
+    // iterator options
+    data.array = data.bottom = data.loop = data.top = '';
+    data.init = 'iterable';
+    data.useHas = true;
+    data.useKeys = !!keys;
 
     // merge options into a template data object
     for (var object, index = 0; object = arguments[index]; index++) {
@@ -4686,60 +4823,33 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
 
     // create the function factory
     var factory = Function(
-        'hasOwnProperty, isArguments, isArray, isString, keys, ' +
-        'lodash, objectTypes',
+        'errorClass, errorProto, hasOwnProperty, isArguments, isArray, ' +
+        'isString, keys, lodash, objectProto, objectTypes, nonEnumProps, ' +
+        'stringClass, stringProto, toString',
       'return function(' + args + ') {\n' + iteratorTemplate(data) + '\n}'
     );
+
+    releaseObject(data);
+
     // return the compiled function
     return factory(
-      hasOwnProperty, isArguments, isArray, isString, keys,
-      lodash, objectTypes
+      errorClass, errorProto, hasOwnProperty, isArguments, isArray,
+      isString, keys, lodash, objectProto, objectTypes, nonEnumProps,
+      stringClass, stringProto, toString
     );
   }
 
   /**
-   * Used by `template` to escape characters for inclusion in compiled
-   * string literals.
+   * Gets the appropriate "indexOf" function. If the `_.indexOf` method is
+   * customized, this method returns the custom method, otherwise it returns
+   * the `basicIndexOf` function.
    *
    * @private
-   * @param {String} match The matched character to escape.
-   * @returns {String} Returns the escaped character.
+   * @returns {Function} Returns the "indexOf" function.
    */
-  function escapeStringChar(match) {
-    return '\\' + stringEscapes[match];
-  }
-
-  /**
-   * Used by `escape` to convert characters to HTML entities.
-   *
-   * @private
-   * @param {String} match The matched character to escape.
-   * @returns {String} Returns the escaped character.
-   */
-  function escapeHtmlChar(match) {
-    return htmlEscapes[match];
-  }
-
-  /**
-   * Checks if `value` is a DOM node in IE < 9.
-   *
-   * @private
-   * @param {Mixed} value The value to check.
-   * @returns {Boolean} Returns `true` if the `value` is a DOM node, else `false`.
-   */
-  function isNode(value) {
-    // IE < 9 presents DOM nodes as `Object` objects except they have `toString`
-    // methods that are `typeof` "string" and still can coerce nodes to strings
-    return typeof value.toString != 'function' && typeof (value + '') == 'string';
-  }
-
-  /**
-   * A no-operation function.
-   *
-   * @private
-   */
-  function noop() {
-    // no operation performed
+  function getIndexOf(array, value, fromIndex) {
+    var result = (result = lodash.indexOf) === indexOf ? basicIndexOf : result;
+    return result;
   }
 
   /**
@@ -4753,73 +4863,33 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    * @returns {Boolean} Returns `true`, if `value` is a plain object, else `false`.
    */
   function shimIsPlainObject(value) {
-    // avoid non-objects and false positives for `arguments` objects
-    var result = false;
-    if (!(value && toString.call(value) == objectClass) || (!support.argsClass && isArguments(value))) {
-      return result;
-    }
-    // check that the constructor is `Object` (i.e. `Object instanceof Object`)
-    var ctor = value.constructor;
+    var ctor,
+        result;
 
-    if (isFunction(ctor) ? ctor instanceof ctor : (support.nodeClass || !isNode(value))) {
-      // IE < 9 iterates inherited properties before own properties. If the first
-      // iterated property is an object's own property then there are no inherited
-      // enumerable properties.
-      if (support.ownLast) {
-        forIn(value, function(value, key, object) {
-          result = hasOwnProperty.call(object, key);
-          return false;
-        });
-        return result === true;
-      }
-      // In most environments an object's own properties are iterated before
-      // its inherited properties. If the last iterated property is an object's
-      // own property then there are no inherited enumerable properties.
-      forIn(value, function(value, key) {
-        result = key;
+    // avoid non Object objects, `arguments` objects, and DOM elements
+    if (!(value && toString.call(value) == objectClass) ||
+        (ctor = value.constructor, isFunction(ctor) && !(ctor instanceof ctor)) ||
+        (!support.argsClass && isArguments(value)) ||
+        (!support.nodeClass && isNode(value))) {
+      return false;
+    }
+    // IE < 9 iterates inherited properties before own properties. If the first
+    // iterated property is an object's own property then there are no inherited
+    // enumerable properties.
+    if (support.ownLast) {
+      forIn(value, function(value, key, object) {
+        result = hasOwnProperty.call(object, key);
+        return false;
       });
-      return result === false || hasOwnProperty.call(value, result);
+      return result !== false;
     }
-    return result;
-  }
-
-  /**
-   * Slices the `collection` from the `start` index up to, but not including,
-   * the `end` index.
-   *
-   * Note: This function is used, instead of `Array#slice`, to support node lists
-   * in IE < 9 and to ensure dense arrays are returned.
-   *
-   * @private
-   * @param {Array|Object|String} collection The collection to slice.
-   * @param {Number} start The start index.
-   * @param {Number} end The end index.
-   * @returns {Array} Returns the new array.
-   */
-  function slice(array, start, end) {
-    start || (start = 0);
-    if (typeof end == 'undefined') {
-      end = array ? array.length : 0;
-    }
-    var index = -1,
-        length = end - start || 0,
-        result = Array(length < 0 ? 0 : length);
-
-    while (++index < length) {
-      result[index] = array[start + index];
-    }
-    return result;
-  }
-
-  /**
-   * Used by `unescape` to convert HTML entities to characters.
-   *
-   * @private
-   * @param {String} match The matched character to unescape.
-   * @returns {String} Returns the unescaped character.
-   */
-  function unescapeHtmlChar(match) {
-    return htmlUnescapes[match];
+    // In most environments an object's own properties are iterated before
+    // its inherited properties. If the last iterated property is an object's
+    // own property then there are no inherited enumerable properties.
+    forIn(value, function(value, key) {
+      result = key;
+    });
+    return result === undefined || hasOwnProperty.call(value, result);
   }
 
   /*--------------------------------------------------------------------------*/
@@ -4883,8 +4953,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
     'args': 'object',
     'init': '[]',
     'top': 'if (!(objectTypes[typeof object])) return result',
-    'loop': 'result.push(index)',
-    'arrays': false
+    'loop': 'result.push(index)'
   });
 
   /**
@@ -4925,26 +4994,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    * @param {Mixed} [thisArg] The `this` binding of `callback`.
    * @returns {Array|Object|String} Returns `collection`.
    */
-  var each = createIterator(eachIteratorOptions);
-
-  /**
-   * Used to convert characters to HTML entities:
-   *
-   * Though the `>` character is escaped for symmetry, characters like `>` and `/`
-   * don't require escaping in HTML and have no special meaning unless they're part
-   * of a tag or an unquoted attribute value.
-   * http://mathiasbynens.be/notes/ambiguous-ampersands (under "semi-related fun fact")
-   */
-  var htmlEscapes = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  };
-
-  /** Used to convert HTML entities to characters */
-  var htmlUnescapes = {'&amp;':'&','&lt;':'<','&gt;':'>','&quot;':'"','&#x27;':"'"};
+  var basicEach = createIterator(eachIteratorOptions);
 
   /*--------------------------------------------------------------------------*/
 
@@ -5038,7 +5088,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
 
     // allows working with "Collections" methods without using their `callback`
     // argument, `index|key`, for this method's `callback`
-    if (typeof deep == 'function') {
+    if (typeof deep != 'boolean' && deep != null) {
       thisArg = callback;
       callback = deep;
       deep = false;
@@ -5083,8 +5133,9 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
         return ctor(result.source, reFlags.exec(result));
     }
     // check for circular references and return corresponding clone
-    stackA || (stackA = []);
-    stackB || (stackB = []);
+    var initedStack = !stackA;
+    stackA || (stackA = getArray());
+    stackB || (stackB = getArray());
 
     var length = stackA.length;
     while (length--) {
@@ -5110,10 +5161,14 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
     stackB.push(result);
 
     // recursively populate clone (susceptible to call stack limits)
-    (isArr ? forEach : forOwn)(value, function(objValue, key) {
+    (isArr ? basicEach : forOwn)(value, function(objValue, key) {
       result[key] = clone(objValue, deep, callback, undefined, stackA, stackB);
     });
 
+    if (initedStack) {
+      releaseArray(stackA);
+      releaseArray(stackB);
+    }
     return result;
   }
 
@@ -5300,8 +5355,9 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
     // assume cyclic structures are equal
     // the algorithm for detecting cyclic structures is adapted from ES 5.1
     // section 15.12.3, abstract operation `JO` (http://es5.github.com/#x15.12.3)
-    stackA || (stackA = []);
-    stackB || (stackB = []);
+    var initedStack = !stackA;
+    stackA || (stackA = getArray());
+    stackB || (stackB = getArray());
 
     var length = stackA.length;
     while (length--) {
@@ -5363,6 +5419,10 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
         }
       });
     }
+    if (initedStack) {
+      releaseArray(stackA);
+      releaseArray(stackB);
+    }
     return result;
   }
 
@@ -5414,7 +5474,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
     // http://es5.github.com/#x8
     // and avoid a V8 bug
     // http://code.google.com/p/v8/issues/detail?id=2291
-    return value ? objectTypes[typeof value] : false;
+    return !!(value && objectTypes[typeof value]);
   }
 
   /**
@@ -5538,8 +5598,9 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
           stackA = args[4],
           stackB = args[5];
     } else {
-      stackA = [];
-      stackB = [];
+      var initedStack = true;
+      stackA = getArray();
+      stackB = getArray();
 
       // allows working with `_.reduce` and `_.reduceRight` without
       // using their `callback` arguments, `index|key` and `collection`
@@ -5604,6 +5665,11 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
         }
         object[key] = value;
       });
+    }
+
+    if (initedStack) {
+      releaseArray(stackA);
+      releaseArray(stackB);
     }
     return object;
   }
@@ -5673,7 +5739,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    *
    * @static
    * @memberOf _
-   * @alias detect
+   * @alias detect, findWhere
    * @category Collections
    * @param {Array|Object|String} collection The collection to iterate over.
    * @param {Function|Object|String} [callback=identity] The function called per
@@ -5717,7 +5783,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
       }
     } else {
       var result;
-      each(collection, function(value, index, collection) {
+      basicEach(collection, function(value, index, collection) {
         if (callback(value, index, collection)) {
           result = value;
           return false;
@@ -5760,7 +5826,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
         }
       }
     } else {
-      each(collection, callback, thisArg);
+      basicEach(collection, callback, thisArg);
     }
     return collection;
   }
@@ -5785,16 +5851,30 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    */
   function difference(array) {
     var index = -1,
+        indexOf = getIndexOf(),
         length = array ? array.length : 0,
-        flattened = concat.apply(arrayRef, nativeSlice.call(arguments, 1)),
-        contains = cachedContains(flattened),
+        seen = concat.apply(arrayRef, nativeSlice.call(arguments, 1)),
         result = [];
 
+    var isLarge = length >= largeArraySize && indexOf === basicIndexOf;
+
+    if (isLarge) {
+      var cache = createCache(seen);
+      if (cache) {
+        indexOf = cacheIndexOf;
+        seen = cache;
+      } else {
+        isLarge = false;
+      }
+    }
     while (++index < length) {
       var value = array[index];
-      if (!contains(value)) {
+      if (indexOf(seen, value) < 0) {
         result.push(value);
       }
+    }
+    if (isLarge) {
+      releaseObject(seen);
     }
     return result;
   }
@@ -5824,21 +5904,14 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    * // => 2
    */
   function indexOf(array, value, fromIndex) {
-    var index = -1,
-        length = array ? array.length : 0;
-
     if (typeof fromIndex == 'number') {
-      index = (fromIndex < 0 ? nativeMax(0, length + fromIndex) : fromIndex || 0) - 1;
+      var length = array ? array.length : 0;
+      fromIndex = (fromIndex < 0 ? nativeMax(0, length + fromIndex) : fromIndex || 0);
     } else if (fromIndex) {
-      index = sortedIndex(array, value);
+      var index = sortedIndex(array, value);
       return array[index] === value ? index : -1;
     }
-    while (++index < length) {
-      if (array[index] === value) {
-        return index;
-      }
-    }
-    return -1;
+    return array ? basicIndexOf(array, value, fromIndex) : -1;
   }
 
   /**
@@ -5996,33 +6069,33 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
         return result;
       };
     }
-    if (typeof thisArg != 'undefined') {
-      if (argCount === 1) {
-        return function(value) {
-          return func.call(thisArg, value);
-        };
-      }
-      if (argCount === 2) {
-        return function(a, b) {
-          return func.call(thisArg, a, b);
-        };
-      }
-      if (argCount === 4) {
-        return function(accumulator, value, index, collection) {
-          return func.call(thisArg, accumulator, value, index, collection);
-        };
-      }
-      return function(value, index, collection) {
-        return func.call(thisArg, value, index, collection);
+    if (typeof thisArg == 'undefined' || (reThis && !reThis.test(fnToString.call(func)))) {
+      return func;
+    }
+    if (argCount === 1) {
+      return function(value) {
+        return func.call(thisArg, value);
       };
     }
-    return func;
+    if (argCount === 2) {
+      return function(a, b) {
+        return func.call(thisArg, a, b);
+      };
+    }
+    if (argCount === 4) {
+      return function(accumulator, value, index, collection) {
+        return func.call(thisArg, accumulator, value, index, collection);
+      };
+    }
+    return function(value, index, collection) {
+      return func.call(thisArg, value, index, collection);
+    };
   }
 
   /*--------------------------------------------------------------------------*/
 
   /**
-   * This function returns the first argument passed to it.
+   * This method returns the first argument passed to it.
    *
    * @static
    * @memberOf _
@@ -6072,6 +6145,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
   lodash.sortedIndex = sortedIndex;
 
   lodash.detect = find;
+  lodash.findWhere = find;
 
   /*--------------------------------------------------------------------------*/
 
@@ -6082,7 +6156,7 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
    * @memberOf _
    * @type String
    */
-  lodash.VERSION = '1.2.1';
+  lodash.VERSION = '1.3.1';
 
   /*--------------------------------------------------------------------------*/
 
@@ -6097,17 +6171,23 @@ require.register("particle/dist/lodash.js", function(exports, require, module){
 require.register("particle/dist/collector.js", function(exports, require, module){
 // Generated by CoffeeScript 1.6.3
 (function() {
-  var Client, Collector, EventEmitter, applyOp, find, normalizePayload, objInclude, _, _ref,
+  var Client, Collector, EventEmitter, applyOp, find, getEventPath, objInclude, _, _ref,
     __hasProp = {}.hasOwnProperty,
     __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
 
   _ref = require('./util'), objInclude = _ref.objInclude, find = _ref.find, _ = _ref._, EventEmitter = _ref.EventEmitter;
 
-  normalizePayload = require('./normalizePayload');
-
   Client = require('./client');
 
   applyOp = require('./applyOp');
+
+  getEventPath = function(root, path) {
+    if (path === '.') {
+      return root;
+    } else {
+      return "" + root + "." + path;
+    }
+  };
 
   Collector = (function(_super) {
     __extends(Collector, _super);
@@ -6120,6 +6200,7 @@ require.register("particle/dist/collector.js", function(exports, require, module
       }
       status = 'waiting';
       this.data = {};
+      this.received = {};
       this.identity = options.identity || {};
       this.network = options.network || {};
       this.debug = options.onDebug || function() {};
@@ -6138,18 +6219,10 @@ require.register("particle/dist/collector.js", function(exports, require, module
         return _this.status = 'ready';
       });
       this.on('data', function(data, event) {
-        var eventName, normEvent, op, _i, _len, _ref1;
+        var eventName;
         this.debug('Sending new data notification!');
-        if (event.oplist) {
-          _ref1 = event.oplist;
-          for (_i = 0, _len = _ref1.length; _i < _len; _i++) {
-            op = _ref1[_i];
-            eventName = "" + event.root + "." + op.path;
-            normEvent = _.merge({}, event, op);
-            delete normEvent.oplist;
-            this.emit(eventName, data, normEvent);
-          }
-        }
+        eventName = getEventPath(event.root, event.path);
+        this.emit(eventName, data, event);
         return this.onData(data, event);
       });
     }
@@ -6171,8 +6244,7 @@ require.register("particle/dist/collector.js", function(exports, require, module
     };
 
     Collector.prototype.receive = function(name, event) {
-      var nm,
-        _this = this;
+      var _this = this;
       this.lastUpdated = new Date(event.timestamp);
       this.debug('Received data.', {
         name: name,
@@ -6183,17 +6255,14 @@ require.register("particle/dist/collector.js", function(exports, require, module
           this.manifest = event;
           return this.checkReady();
         case 'payload':
-          this.data[event.root] = _.clone(event.data, true);
-          nm = normalizePayload(event);
-          if (nm.oplist.length > 0) {
-            this.emit('data', this.data, nm);
+          applyOp(this.data, event);
+          this.emit('data', this.data, event);
+          if (event.origin === 'end payload') {
+            this.received[event.root] = true;
           }
           return this.checkReady();
         case 'delta':
           return this.ready(function() {
-            _this.debug("Updating collection '" + event.root + "' with '" + (event.oplist.map(function(o) {
-              return o.operation;
-            }).join(',')) + "'.");
             applyOp(_this.data, event);
             return _this.emit('data', _this.data, event);
           });
@@ -6202,21 +6271,21 @@ require.register("particle/dist/collector.js", function(exports, require, module
 
     Collector.prototype.checkReady = function() {
       var checkManifest, ready;
-      checkManifest = function(data, manifest) {
+      checkManifest = function(received, manifest) {
         var name;
         if (manifest == null) {
           return false;
         }
         for (name in manifest) {
           if (name !== 'timestamp') {
-            if (!data[name]) {
+            if (!received[name]) {
               return false;
             }
           }
         }
         return true;
       };
-      ready = checkManifest(this.data, this.manifest);
+      ready = checkManifest(this.received, this.manifest);
       this.debug("Checking if we're ready...", {
         manifest: this.manifest != null,
         allReceived: ready
@@ -6341,106 +6410,100 @@ require.register("particle/dist/applyOp.js", function(exports, require, module){
   _ref = require('./util'), indexContaining = _ref.indexContaining, _ = _ref._, getType = _ref.getType;
 
   module.exports = function(dataRoot, _arg) {
-    var arrayIndex, arraySpec, data, id, index, location, node, op, operation, oplist, part, path, root, spec, subDoc, target, _i, _j, _k, _len, _len1, _ref1, _ref2;
-    root = _arg.root, oplist = _arg.oplist;
+    var arrayIndex, arraySpec, data, index, location, node, operation, part, path, root, spec, subDoc, target, _i, _id, _j, _len, _ref1, _ref2;
+    root = _arg.root, path = _arg.path, _id = _arg._id, data = _arg.data, operation = _arg.operation;
     dataRoot[root] || (dataRoot[root] = []);
-    for (_i = 0, _len = oplist.length; _i < _len; _i++) {
-      op = oplist[_i];
-      path = op.path, id = op.id, data = op.data, operation = op.operation;
-      node = _.find(dataRoot[root], function(n) {
-        return n.id === id;
-      });
-      if (!node) {
-        if (__indexOf.call(removers, operation) >= 0) {
-          return;
-        } else {
-          node = {
-            id: id
-          };
-          dataRoot[root].push(node);
-        }
-      }
-      if (path === '.') {
-        target = dataRoot[root].indexOf(node);
-        node = dataRoot[root];
-        data = _.extend(data, {
-          id: id
-        });
+    if (operation === 'noop') {
+      return;
+    }
+    node = _.find(dataRoot[root], function(n) {
+      return n._id === _id;
+    });
+    if (!node) {
+      if (__indexOf.call(removers, operation) >= 0) {
+        return;
       } else {
-        _ref1 = path.split('.'), location = 2 <= _ref1.length ? __slice.call(_ref1, 0, _j = _ref1.length - 1) : (_j = 0, []), target = _ref1[_j++];
-        for (_k = 0, _len1 = location.length; _k < _len1; _k++) {
-          part = location[_k];
-          arraySpec = part.match(/\[([0-9+])\]/);
-          if (arraySpec) {
-            spec = arraySpec[0], arrayIndex = arraySpec[1];
-            arrayIndex = parseInt(arrayIndex);
-            part = part.replace(spec, '');
+        node = {
+          _id: _id
+        };
+        dataRoot[root].push(node);
+      }
+    }
+    if (path === '.') {
+      target = dataRoot[root].indexOf(node);
+      node = dataRoot[root];
+      data = _.extend(data, {
+        _id: _id
+      });
+    } else {
+      _ref1 = path.split('.'), location = 2 <= _ref1.length ? __slice.call(_ref1, 0, _i = _ref1.length - 1) : (_i = 0, []), target = _ref1[_i++];
+      for (_j = 0, _len = location.length; _j < _len; _j++) {
+        part = location[_j];
+        arraySpec = part.match(/\[([0-9+])\]/);
+        if (arraySpec) {
+          spec = arraySpec[0], arrayIndex = arraySpec[1];
+          arrayIndex = parseInt(arrayIndex);
+          part = part.replace(spec, '');
+        }
+        if (node[part] == null) {
+          if (__indexOf.call(removers, operation) >= 0) {
+            return;
+          } else {
+            node[part] = arrayIndex ? [] : {};
           }
-          if (node[part] == null) {
+        }
+        node = node[part];
+        if (arrayIndex) {
+          subDoc = _.find(node, function(item) {
+            return item._id === arrayIndex;
+          });
+          if (subDoc == null) {
             if (__indexOf.call(removers, operation) >= 0) {
               return;
             } else {
-              node[part] = arrayIndex ? [] : {};
+              subDoc = {
+                _id: arrayIndex
+              };
+              node.push(subDoc);
             }
           }
-          node = node[part];
-          if (arrayIndex) {
-            subDoc = _.find(node, function(item) {
-              return item.id === arrayIndex;
-            });
-            if (subDoc == null) {
-              if (__indexOf.call(removers, operation) >= 0) {
-                return;
-              } else {
-                subDoc = {
-                  id: arrayIndex
-                };
-                node.push(subDoc);
-              }
-            }
-            node = subDoc;
-          }
+          node = subDoc;
         }
       }
-      switch (operation) {
-        case 'set':
-          node[target] = data;
-          break;
-        case 'unset':
-          if (getType(node) === 'Array' && getType(target) === 'Number') {
-            node.splice(target, 1);
-          } else {
-            delete node[target];
-          }
-          break;
-        case 'inc':
-          node[target] = (node[target] || 0) + (data || 1);
-          break;
-        case 'rename':
-          node[data] = node[target];
-          delete node[target];
-          break;
-        case 'push':
-          node[target] || (node[target] = []);
-          node[target].push(data);
-          break;
-        case 'pushAll':
-          node[target] || (node[target] = []);
-          (_ref2 = node[target]).push.apply(_ref2, data);
-          break;
-        case 'pop':
-          if (data === -1) {
-            node[target].splice(0, 1);
-          } else {
-            node[target].splice(-1, 1);
-          }
-          break;
-        case 'pull':
-          index = indexContaining(node[target], data);
-          if (index != null) {
-            node[target].splice(index, 1);
-          }
-      }
+    }
+    switch (operation) {
+      case 'set':
+        return node[target] = data;
+      case 'unset':
+        if (getType(node) === 'Array' && getType(target) === 'Number') {
+          return node.splice(target, 1);
+        } else {
+          return delete node[target];
+        }
+        break;
+      case 'inc':
+        return node[target] = (node[target] || 0) + (data || 1);
+      case 'rename':
+        node[data] = node[target];
+        return delete node[target];
+      case 'push':
+        node[target] || (node[target] = []);
+        return node[target].push(data);
+      case 'pushAll':
+        node[target] || (node[target] = []);
+        return (_ref2 = node[target]).push.apply(_ref2, data);
+      case 'pop':
+        if (data === -1) {
+          return node[target].splice(0, 1);
+        } else {
+          return node[target].splice(-1, 1);
+        }
+        break;
+      case 'pull':
+        index = indexContaining(node[target], data);
+        if (index != null) {
+          return node[target].splice(index, 1);
+        }
     }
   };
 
@@ -6452,34 +6515,6 @@ require.register("particle/dist/enums.js", function(exports, require, module){
 (function() {
   module.exports = {
     removers: ['unset']
-  };
-
-}).call(this);
-
-});
-require.register("particle/dist/normalizePayload.js", function(exports, require, module){
-// Generated by CoffeeScript 1.6.3
-(function() {
-  module.exports = function(event) {
-    var id, normalized, oplist, record, _i, _len, _ref;
-    oplist = [];
-    _ref = event.data;
-    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-      record = _ref[_i];
-      id = record.id;
-      delete record.id;
-      oplist.push({
-        operation: 'set',
-        id: id,
-        path: '.',
-        data: record
-      });
-    }
-    return normalized = {
-      root: event.root,
-      timestamp: event.timestamp,
-      oplist: oplist
-    };
   };
 
 }).call(this);
@@ -6564,6 +6599,16 @@ require.register("particle/dist/util.js", function(exports, require, module){
         }
       }
       return null;
+    },
+    box: function(val) {
+      if (val == null) {
+        return [];
+      }
+      if (util.getType(val) === 'Array') {
+        return val;
+      } else {
+        return [val];
+      }
     }
   };
 
