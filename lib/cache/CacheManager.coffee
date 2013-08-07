@@ -57,6 +57,7 @@ class CacheManager extends EventEmitter
     @ready done if done
 
   importDataSources: (dataSources, done) ->
+    @debug 'Importing data sources:'.red, dataSources
 
     for name, source of dataSources
       collection = source.collection

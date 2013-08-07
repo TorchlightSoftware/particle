@@ -11,7 +11,6 @@ serializeError = (err) ->
   else
     return err
 
-
 connections = []
 
 server =

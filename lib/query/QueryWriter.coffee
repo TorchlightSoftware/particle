@@ -20,20 +20,18 @@ class QueryWriter extends Writable
     @cacheManager.ready =>
 
       idSet = @_getIdSet()
-      @debug "'#{@sourceName}' running... Initial idSet:".blue, idSet
-      if _.isArray(idSet) and _.isEmpty(idSet)
-        @emit 'ready'
 
-      @adapter.query {
+      query = {
         collName: @source.collection
         idSet
         select: @source.manifest
-      }, (err, @query) =>
+      }
+
+      @debug "'#{@sourceName}' running...".blue, query
+      @adapter.query query, (err, @query) =>
 
         @cacheManager.on "change:#{@sourceName}", (event) =>
           newIdSet = @_getIdSet()
-          @debug 'userIds'.cyan, @cacheManager.get 'users.accountId', 1
-          @debug 'accountId'.cyan, @cacheManager.get 'users._id', 3
           @debug 'updating query:'.blue, {@source, newIdSet}
           @query?.update {newIdSet}
 
@@ -52,6 +50,7 @@ class QueryWriter extends Writable
 
     # trigger ready status
     if event.origin is 'end payload'
+      @debug 'got end payload:'.blue, event
       origin = 'payload'
       process.nextTick =>
         @emit 'ready'

@@ -169,7 +169,11 @@ describe 'QueryWriter', ->
       @receiver
     }
     @qw.ready =>
-      @collector.history.length.should.eql 0
+      @collector.history.length.should.eql 1
+      @collector.history[0].should.include {
+        origin: 'end payload'
+        operation: 'noop'
+      }
       done()
 
   it 'should call ready if source criteria is undefined', (done) ->

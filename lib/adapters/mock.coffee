@@ -39,7 +39,15 @@ class MockStream extends Readable
       path: '.'
       data: record
 
-    unless _.isEmpty events
+    if _.isEmpty events
+      process.nextTick =>
+        @push {
+          origin: 'end payload'
+          namespace: "test.#{@collName}"
+          timestamp: new Date
+          operation: 'noop'
+        }
+    else
       events[events.length-1].origin = 'end payload'
 
     return events

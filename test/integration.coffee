@@ -1,264 +1,135 @@
 should = require 'should'
-{Collector, Stream} = require '../.'
-mongoWatchPolicy = require '../sample/mongoWatchPolicy'
-{Server, Db, ObjectID} = require 'mongodb'
-{getType} = require '../lib/util'
-logger = require './helpers/logger'
-qi = require 'qi'
-_ = require 'lodash'
+{getType} = require 'ale'
+logger = require 'torch'
 http = require 'http'
+_ = require 'lodash'
 
-randomPort = -> Math.floor(Math.random() * 1000) + 8000
+# get rid of annoying warnings
+require('../lib/patchEventEmitter')()
 
-tests = [
-    description: 'should emit events'
-    identity: {sessionId: 5}
+{Collector, Stream} = require '../.'
+samplePolicy = require '../sample/data/samplePolicy'
+mongoWatchPolicy = require '../sample/data/mongoWatchPolicy'
+limit = require './helpers/limit'
 
-    # Given no users
+mockSourceData = require '../sample/data/mockSourceData'
+loadTestData = require '../sample/loadTestData'
+removeTestData = require '../sample/removeTestData'
 
-    ready: (next) ->
+randomPort = (-> Math.floor(Math.random() * 1000) + 8000)()
 
-      # I should see no users when the client initializes
-      @collector.data.should.eql {users: []}
+expectedCache =
+  'userstuffs._id':
+     '6': { 'users._id': 4, 'stuffs._id': 1 }
+     '7': { 'users._id': 4, 'stuffs._id': 2 }
+     '8': { 'users._id': 5, 'stuffs._id': 2 }
+  'users._id':
+     '4': { 'users.accountId': 1, 'userstuffs._id': [ 6, 7 ] }
+     '5': { 'users.accountId': 1, 'userstuffs._id': [ 8 ] }
+  'stuffs._id':
+     '1': { 'userstuffs._id': [ 6 ] }
+     '2': { 'userstuffs._id': [ 7, 8 ] }
+  'users.accountId':
+     '1': { 'users._id': [ 4, 5 ] }
 
-      # When I insert a user
-      @users.insert {email: 'graham@daventry.com'}, next
+expectedData = {
+  myProfile: [
+    { _id: 4, accountId: 1, name: 'Bob', email: 'bob@foo.com' }
+  ]
+  myStuff: [
+    { _id: 1, stuff: [ 'foo', 'bar' ] }
+    { _id: 2, stuff: [ 'baz' ] }
+  ]
+  visibleUsers: [
+    { _id: 4, accountId: 1, name: 'Bob', email: 'bob@foo.com' }
+    { _id: 5, accountId: 1, name: 'Jane', email: 'jane@foo.com' }
+  ]
+}
 
-    #onDebug: logger
+{MongoClient, ObjectID} = require 'mongodb'
 
-    listen:
-      'Then I should see a delta':
-        on: 'users'
-        do: (data, event, next) ->
-          should.exist event
-          should.exist event.root, 'expected root'
-          event.root.should.eql 'users'
-          (getType event.oplist).should.eql 'Array'
-          event.oplist.should.have.length 1
+describe 'Integration', ->
+  afterEach (done) ->
+    removeTestData mockSourceData, done
 
-          should.exist data
-          should.exist data?.users?[0]?.id, 'expected user id'
-          should.exist data?.users?[0]?.email, 'expected user email'
+  it 'should work via network', (done) ->
 
-          expected = [
-            operation: 'set'
-            id: event.oplist[0].id
-            path: '.'
-            data:
-              email: 'graham@daventry.com'
-              id: event.oplist[0].id
-          ]
+    # create stream/server
+    policy = limit samplePolicy, ['myProfile', 'myStuff', 'visibleUsers']
+    #policy.onDebug = logger.grey
+    stream = new Stream policy
 
-          event.oplist.should.eql expected
-          next()
-  ,
+    server = http.createServer()
+    server.listen randomPort, (err) =>
+      should.not.exist err
 
-    description: 'should work with sub documents'
+      stream.init(server)
 
-    # Given I have a user record with a sub document
-    pre: (next) ->
-      @initialRecord =
-        email: 'graham@daventry.com'
-        friends: [
-            name: 'Bob'
-          ,
-            name: 'Sally'
-        ]
+      # create collector/client
+      collector = new Collector {
+        #onDebug: logger.white
+        network:
+          port: randomPort
+        identity:
+          userId: 4
+          accountId: 1
+      }
 
-      @users.insert @initialRecord, (args...) =>
+      collector.register()
+      collector.ready =>
+        collector.data.should.eql expectedData
+        done()
 
-        # mongoose is modifying the arg I gave it to add an _id
-        @initialRecord.id = @initialRecord._id.toString()
-        delete @initialRecord._id
+  it 'no data should work with mongo-watch', (done) ->
 
-        next args...
+    # create stream/server
+    policy = limit mongoWatchPolicy, ['myProfile', 'myStuff', 'visibleUsers']
+    #policy.onDebug = logger.grey
+    stream = new Stream policy
 
+    # create collector/client
+    collector = new Collector {
+      #onDebug: logger.white
+      onRegister: stream.register.bind(stream)
+      identity:
+        userId: 1
+        accountId: 1
+    }
 
-    identity: {sessionId: 5}
+    collector.register()
+    collector.ready =>
+      collector.data.should.eql {
+        visibleUsers: []
+        myProfile: []
+        myStuff: []
+      }
+      done()
 
-    listen:
-      'I should recieve a delta event':
-        on: 'users'
-        do: (data, event, next) ->
-          if event?.oplist?[0]?.operation is 'push'
-            event.oplist[0].should.eql {
-              operation: 'push'
-              id: @initialRecord.id
-              path: 'friends'
-              data: {name: 'Jim'}
-            }
-            data.should.eql
-              users: [{
-                email: 'graham@daventry.com'
-                friends: [
-                    name: 'Bob'
-                  ,
-                    name: 'Sally'
-                  ,
-                    name: 'Jim'
-                ]
-                id: @initialRecord.id
-              }]
-            next()
+  it 'with data should work with mongo-watch', (done) ->
+    loadTestData mockSourceData, (err, data) ->
+      should.not.exist err
 
-    ready: (next) ->
-      should.exist @collector.data?.users?[0]
+      [stuffs, users] = data
+      bob = _.find users, (u) -> u.name is 'Bob'
 
-      @collector.data.users[0].should.eql @initialRecord
+      # create stream/server
+      policy = limit mongoWatchPolicy, ['myProfile', 'myStuff', 'visibleUsers']
+      #policy.onDebug = logger.grey
+      stream = new Stream policy
 
-      @users.update {_id: new ObjectID @initialRecord.id}, {'$push': friends: {name: 'Jim'}}, next
-  ,
+      stream.ready =>
+        stream.cache._cache.should.eql expectedCache
 
-    description: 'should update a document in an array'
-    identity: {sessionId: 5}
+        # create collector/client
+        collector = new Collector {
+          #onDebug: logger.white
+          onRegister: stream.register.bind(stream)
+          identity:
+            userId: bob._id
+            accountId: bob.accountId
+        }
 
-    #onDebug: logger
-
-    # Given a user with an array
-    pre: (next) ->
-      @initialRecord =
-        email: 'graham@daventry.com'
-        friends: [
-            _id: 5
-            name: 'Bob'
-          ,
-            _id: 6
-            name: 'Sally'
-        ]
-
-      @users.insert @initialRecord, (err) =>
-
-        # mongoose is modifying the arg I gave it to add an _id
-        @initialRecord.id = @initialRecord._id.toString()
-        delete @initialRecord._id
-
-        next err
-
-    # When I update a document in an array
-    ready: (next) ->
-      @users.update {_id: new ObjectID(@initialRecord.id), 'friends._id': 5}, {'$set': 'friends.$.name': 'Fred'}, next
-
-    listen:
-      'Then the data should be updated':
-        on: 'users'
-        do: (data, event, next) ->
-          if event.oplist[0].data is 'Fred'
-            data.users[0].friends[0].should.eql {_id: 5, name: 'Fred'}
-            next()
-  ,
-
-    description: 'should pull a document from an array'
-    identity: {sessionId: 5}
-
-    #onDebug: logger
-
-    # Given a user with an array
-    pre: (next) ->
-      @initialRecord =
-        email: 'graham@daventry.com'
-        friends: [
-          {id: 9, name: 'Jane'}
-          {id: 10, name: 'Bob'}
-        ]
-
-      @users.insert @initialRecord, (err) =>
-
-        # mongoose is modifying the arg I gave it to add an _id
-        @initialRecord.id = @initialRecord._id.toString()
-        delete @initialRecord._id
-
-        next err
-
-    # When I update a document in an array
-    ready: (next) ->
-      @users.update {_id: new ObjectID(@initialRecord.id)}, {'$pull': 'friends': {id: 9}}, next
-
-    listen:
-      'Then the data should be updated':
-        on: 'users'
-        do: (data, event, next) ->
-          if event.oplist[0].operation is 'pull'
-            data.users[0].should.include
-              email: 'graham@daventry.com'
-              friends: [
-                {id: 10, name: 'Bob'}
-              ]
-            next()
-]
-
-# create a test harness which turns the above test data into live tests
-for transport in ['process', 'websocket']
-  do (transport) ->
-    describe "Integration [#{transport}]", ->
-      before (done) ->
-        cb = qi.focus done
-        finished = cb()
-
-        if transport is 'websocket'
-          @testPort = randomPort()
-          @server = http.createServer().listen @testPort, cb()
-
-        # create a ref for modifying 'users'
-        client = new Db 'test', new Server('localhost', 27017), {w: 1}
-        client.open (err) =>
-          return done err if err
-
-          client.collection 'users', (err, @users) =>
-            finished err
-
-      afterEach ->
-        @stream.disconnect() if @stream
-        @users.remove {}, ->
-
-      after (done) ->
-        if (transport is 'websocket') and @server?
-          @server.close done
-        else
+        collector.register()
+        collector.ready =>
+          collector.data.should.eql expectedData
           done()
-
-      for test in tests
-        do (test) ->
-          {identity, description, pre, listen, onDebug, ready} = test
-
-          defaultFn = (next) -> next()
-          pre or= defaultFn
-          ready or= defaultFn
-
-          it description, (done) ->
-            getCb = qi.focus done
-            readyCb = getCb()
-
-            handlers = for name, listener of listen
-              data =
-                ds: name
-                on: listener.on
-                do: listener.do
-                cb: getCb()
-
-            pre.call @, (err) =>
-              should.not.exist err, 'failed pre-condition'
-
-              @stream = new Stream mongoWatchPolicy @users
-              if transport is 'websocket'
-                @stream.init @server
-
-              collectorOptions =
-                identity: identity
-                onDebug: onDebug
-
-                onData: (data, event) =>
-                  for handler in handlers when event.root is handler.on
-                    handler.do.call @, data, event, (err) ->
-                      should.not.exist err, handler.ds
-                      handler.cb err
-
-              if transport is 'process'
-                collectorOptions.onRegister = @stream.register.bind @stream
-              else if transport is 'websocket'
-                collectorOptions.network = {port: @testPort, host: 'localhost'}
-
-              @collector = new Collector collectorOptions
-              @collector.register (err) ->
-                logger err if err
-
-              @collector.ready ready.bind @, readyCb

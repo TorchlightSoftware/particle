@@ -1,5 +1,4 @@
 should = require 'should'
-logger = require './helpers/logger'
 {getType} = require '../lib/util'
 {Collector, Stream} = require '../'
 http = require 'http'

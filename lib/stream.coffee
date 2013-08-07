@@ -7,6 +7,7 @@ Server = require './server'
 
 {empty, _} = require './util'
 debugMixin = require './mixins/debug'
+readyMixin = require './mixins/ready'
 
 class Stream extends EventEmitter
   listeners: []
@@ -15,6 +16,7 @@ class Stream extends EventEmitter
   constructor: (policy) ->
     @onDebug = policy.onDebug
     debugMixin.call(@)
+    readyMixin.call(@)
 
     @queryManagers = []
 
@@ -28,6 +30,7 @@ class Stream extends EventEmitter
     @cacheManager = new CacheManager {adapter: @policy.adapter, @cache, @onDebug}
     @cacheManager.importCacheConfig @policy.cacheConfig
     @cacheManager.importDataSources @policy.dataSources
+    @cacheManager.ready @emit.bind(@, 'ready')
 
     @error = @policy.onError or console.error
 

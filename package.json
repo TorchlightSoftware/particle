@@ -20,6 +20,7 @@
   },
   "devDependencies":{
     "uglify-js":"*",
+    "async":"*",
     "mongodb":"*",
     "connect":"*",
     "mongo-watch":"*",
