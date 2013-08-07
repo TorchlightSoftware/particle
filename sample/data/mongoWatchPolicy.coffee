@@ -6,11 +6,10 @@ watcher = new MongoWatch {db: 'test', format: 'normal'}
 
 samplePolicy = require './samplePolicy'
 
-mwPolicy = _.clone samplePolicy
-_.merge mwPolicy, {
-  adapter: watcher
-  disconnect: ->
-    watcher.stopAll()
-}
-
-module.exports = mwPolicy
+module.exports = ->
+  mwPolicy = samplePolicy()
+  _.merge mwPolicy, {
+    adapter: watcher
+    disconnect: ->
+      watcher.stopAll()
+  }

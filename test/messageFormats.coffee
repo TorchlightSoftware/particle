@@ -8,7 +8,7 @@ jsv = new JaySchema
 describe 'Stream - Policy Input -', ->
 
   it 'should validate mongoWatchPolicy', ->
-    errors = streamInPolicy mongoWatchPolicy
+    errors = streamInPolicy mongoWatchPolicy()
     errors.should.be.empty
 
 describe 'JSON validator', ->

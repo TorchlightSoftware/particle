@@ -1,10 +1,9 @@
 MockAdapter = require '../../lib/adapters/mock'
 mockSourceData = require './mockSourceData'
-adapter = new MockAdapter mockSourceData
 
-module.exports =
+module.exports = ->
 
-  adapter: adapter
+  adapter: new MockAdapter mockSourceData
 
   # Normal use case, use mongo-watch to obtain query streams.
   #adapter: new require('MongoWatch')

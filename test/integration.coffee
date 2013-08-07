@@ -8,8 +8,8 @@ _ = require 'lodash'
 require('../lib/patchEventEmitter')()
 
 {Collector, Stream} = require '../.'
-samplePolicy = require '../sample/data/samplePolicy'
-mongoWatchPolicy = require '../sample/data/mongoWatchPolicy'
+samplePolicy = require('../sample/data/samplePolicy')()
+mongoWatchPolicy = require('../sample/data/mongoWatchPolicy')()
 limit = require './helpers/limit'
 
 mockSourceData = require '../sample/data/mockSourceData'
@@ -65,7 +65,7 @@ describe 'Integration', ->
 
       stream.init(server)
 
-      # create collector/client
+      ## create collector/client
       collector = new Collector {
         #onDebug: logger.white
         network:

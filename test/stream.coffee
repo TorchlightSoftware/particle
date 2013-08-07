@@ -7,7 +7,7 @@ logger = require 'torch'
 
 limit = require './helpers/limit'
 {Stream} = require '../'
-samplePolicy = require '../sample/data/samplePolicy'
+samplePolicy = require('../sample/data/samplePolicy')()
 
 describe 'Stream', ->
   beforeEach ->
@@ -18,7 +18,7 @@ describe 'Stream', ->
     @receiver = @collector.emit.bind(@collector, 'receive')
 
     @identity =
-      userId: 1
+      userId: 4
       accountId: 1
 
   it 'should retrieve payload for visibleUsers', (done) ->
@@ -36,18 +36,18 @@ describe 'Stream', ->
       bob.should.include {
         origin: 'payload'
         namespace: 'test.users'
-        _id: 1
+        _id: 4
         operation: 'set'
         path: '.'
-        data: { _id: 1, accountId: 1, name: 'Bob', email: 'bob@foo.com' }
+        data: { _id: 4, accountId: 1, name: 'Bob', email: 'bob@foo.com' }
       }
       jane.should.include {
         origin: 'end payload'
         namespace: 'test.users'
-        _id: 2
+        _id: 5
         operation: 'set'
         path: '.'
-        data: { _id: 2, accountId: 1, name: 'Jane', email: 'jane@foo.com' }
+        data: { _id: 5, accountId: 1, name: 'Jane', email: 'jane@foo.com' }
       }
       done()
 
@@ -55,29 +55,30 @@ describe 'Stream', ->
     policy = limit samplePolicy, ['visibleUsers']
     #policy.onDebug = logger.grey
     stream = new Stream policy
-    stream.register @identity, @receiver, (err) =>
+    stream.ready =>
+      stream.register @identity, @receiver, (err) =>
 
-      @collector.payload.length.should.eql 2
+        @collector.payload.length.should.eql 2
 
-      collName = 'users'
+        collName = 'users'
 
-      policy.adapter.once "#{collName}:receivedUpdate", ({newIdSet}) ->
-        newIdSet.should.eql [1, 2, 3]
-        done()
+        policy.adapter.once "#{collName}:receivedUpdate", ({newIdSet}) ->
+          newIdSet.should.eql [4, 5, 3]
+          done()
 
-      policy.adapter.send collName, {
-        namespace: "test.#{collName}"
-        origin: 'delta'
-        timestamp: new Date
-        _id: 3
-        operation: 'set'
-        path: '.'
-        data:
+        policy.adapter.send collName, {
+          namespace: "test.#{collName}"
+          origin: 'delta'
+          timestamp: new Date
           _id: 3
-          accountId: 1
-          name: 'Kim'
-          email: 'kim@foo.com'
-      }
+          operation: 'set'
+          path: '.'
+          data:
+            _id: 3
+            accountId: 1
+            name: 'Kim'
+            email: 'kim@foo.com'
+        }
 
   it 'should retrieve payload for myStuff', (done) ->
     policy = limit samplePolicy, ['myStuff']
@@ -119,12 +120,12 @@ describe 'Stream', ->
         namespace: "test.#{collName}"
         origin: 'delta'
         timestamp: new Date
-        _id: 4
+        _id: 9
         operation: 'set'
         path: '.'
         data:
-          _id: 4
-          userId: 1
+          _id: 9
+          userId: 4
           stuffId: 3
       }
 
