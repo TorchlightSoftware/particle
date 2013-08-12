@@ -50,7 +50,7 @@ class QueryWriter extends Writable
 
     # trigger ready status
     if event.origin is 'end payload'
-      @debug 'got end payload:'.blue, event
+      @debug "got end payload for '#{event.root}'".blue
       origin = 'payload'
       process.nextTick =>
         @emit 'ready'
