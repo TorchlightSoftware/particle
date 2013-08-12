@@ -75,8 +75,8 @@ class CacheManager extends EventEmitter
 
       fullKeys = _.map keys, (k) -> "#{collection}.#{k}"
 
-      @debug 'watching keys for datasource'.red, {name, keys, deps}
-      do (name, keys, deps) =>
+      @debug 'watching keys for datasource'.red, {name, keys, deps, fullKeys}
+      do (name, keys, deps, fullKeys) =>
 
         # forward events that relate to this dataSource
         @on 'change', (event) =>
