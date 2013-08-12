@@ -14,6 +14,24 @@ updateJane = {
   data: 'jane@bar.com'
 }
 
+accountIds = [
+    origin: 'end payload'
+    timestamp: new Date
+    namespace: 'test.users'
+    operation: 'set'
+    _id: 1
+    path: 'accountId'
+    data: 1
+  ,
+    origin: 'end payload'
+    timestamp: new Date
+    namespace: 'test.users'
+    operation: 'set'
+    _id: 2
+    path: 'accountId'
+    data: 1
+]
+
 describe 'CacheWriter', ->
   before ->
     @collName = 'users'
@@ -83,3 +101,15 @@ describe 'CacheWriter', ->
     @writer.importKeys ['name', 'email'], (err) =>
     @writer.ready ->
       done()
+
+  it 'should only create one query', (done) ->
+    @writer.importKeys ['name', 'email'], (err) =>
+      query = @writer.query
+      @writer.importKeys ['accountId'], (err) =>
+        query.should.eql @writer.query
+        @writer.keys.should.eql ['name', 'email', 'accountId']
+        done()
+
+      # adapter doesn't respond to updates, must mock send
+      for accId in accountIds
+        @adapter.send 'users', accId

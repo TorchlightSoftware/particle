@@ -54,6 +54,7 @@ class CacheWriter extends Writable
         if err
           @emit 'error', err
         else
+          @emit 'got query'
           @query.pipe @
 
     @ready done if done?
