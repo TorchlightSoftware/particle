@@ -9,6 +9,8 @@ describe 'convertToValue', ->
     @cache = new Relcache
     @identity =
       userId: 2
+      session:
+        accountId: 1
 
   beforeEach ->
     @cache.set 'users._id', 2,  {'users.name': 'Alice',   'users.country': 'USA',    'users.loginCount': 0}
@@ -30,6 +32,10 @@ describe 'convertToValue', ->
       description: 'identity lookup'
       statement: '@userId'
       output: 2
+    ,
+      description: 'nested value'
+      statement: '@session.accountId'
+      output: 1
     ,
       description: 'non-present identity'
       statement: '@foo'
