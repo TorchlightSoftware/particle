@@ -204,7 +204,7 @@ describe 'QueryWriter', ->
       data.should.eql @data.stuffs.slice 0, 2
       done()
 
-  it 'should update on relationship change', (done) ->
+  it 'should update on relationship add', (done) ->
     sourceName = 'myStuff'
     @qw = new QueryWriter {
       @adapter
@@ -236,4 +236,37 @@ describe 'QueryWriter', ->
           _id: 4
           userId: 1
           stuffId: 3
+      }
+
+  it 'should update on relationship remove', (done) ->
+    sourceName = 'myStuff'
+    @qw = new QueryWriter {
+      @adapter
+      @cacheManager
+      @identity
+      sourceName
+      source: @dataSources[sourceName]
+      @receiver
+      #onDebug: logger.grey
+    }
+    @qw.ready =>
+      @collector.history.length.should.eql 2
+      #logger.yellow @collector.history
+
+      collName = 'userstuffs'
+      sample @adapter, "stuffs:receivedUpdate", 3, (err, events) ->
+        [[rem1], [rem2], [rem3]] = events
+        #logger.white events
+
+        rem1.newIdSet.should.eql [1]
+        rem2.newIdSet.should.eql [1]
+        rem3.newIdSet.should.eql [1]
+        done()
+
+      @adapter.send collName, {
+        namespace: "test.#{collName}"
+        timestamp: new Date
+        _id: 2
+        operation: 'unset'
+        path: '.'
       }
