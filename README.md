@@ -41,10 +41,7 @@ collector = new particle.Collector
   identity:
     sessionId: 'foo'
 
-  # I should recieve a delta event
-  onData: (data, event) =>
-    console.log {data, event}
-
+# I should recieve delta events
 collector.on '**', (data, event) ->
 
 collector.register (err) ->
@@ -56,32 +53,46 @@ collector.register (err) ->
 particle = require 'particle'
 MongoWatch = require 'mongo-watch'
 watcher = new MongoWatch {format: 'normal'}
-users = # a collection from mongo driver or mongoose
 
 stream = new particle.Stream
   #onDebug: console.log
+  adapter: watcher
 
-  identityLookup: (identity, done) ->
-    done null, {accountId: 1}
+  # Identity Lookup, performed once upon registration.
+  # identityLookup: (identity, done) ->
+  #   done null, {accountId: 1}
 
+  # Cache Config, used to alias many-to-many lookups or otherwise force caching of fields
+  cacheConfig:
+    userstuffs:
+      userId: 'users._id'
+      stuffId: 'stuffs._id'
+
+  # Data Sources, the data each connected client will have access to.  Any fields used in
+  # the criteria will be automatically cached.
   dataSources:
-
-    users:
-      manifest: # limit what fields should be allowed
-        email: true
-        todo: {list: true}
-
-      payload: # get initial data for users
-        (identity, done) ->
-          users.find().toArray (err, data) ->
-            done err, {data: data, timestamp: new Date}
-
-      delta: # wire up deltas for users
-        (identity, listener) ->
-          watcher.watch "test.users", listener
-
-  disconnect: ->
-    watcher.stopAll()
+    myProfile:
+      collection: 'users' # the source collection (in mongo or other adapter)
+      criteria: {_id: '@userId'} # limit which records come back
+      manifest: true # limit which fields come back
+    myStuff:
+      collection: 'stuffs'
+      criteria: {_id: '@userId|users._id>userstuffs._id>stuffs._id'}
+      manifest: true
+    visibleUsers:
+      collection: 'users'
+      criteria: {accountId: '@accountId'}
+      manifest:
+        name: true
+        _id: true
+    notFound:
+      collection: 'users'
+      criteria: {notFound: true}
+      manifest: true
+    allUsers:
+      collection: 'users'
+      criteria: undefined
+      manifest: true
 ```
 
 ## Configuring Your Particle Stream
@@ -94,21 +105,43 @@ The fields below are required unless you see a * after the name.
 
 Each data source corresponds to a root property on the client side data model (collector.data).  The data source configuration controls where data will come from and how it will be filtered.
 
+* Collection
+
+The MongoDB collection you want to monitor.
+
+* Criteria
+
+The recordset you want to pull back.  This generally looks like a Mongo query, except it supports looking up data in the user's identity and Particle's internal cache.  For instance:
+
+```coffee-script
+criteria: {_id: '@userId|users._id>userstuffs._id>stuffs._id'}
+```
+
+This means "Grab the 'userId' field from the identity, and pipe it through a relationship to find any related stuffs._id's."
+
+You can also supply a regular string or number:
+
+```coffee-script
+criteria: {name: 'Joe'}
+```
+
+Or a lookup by string:
+
+```coffee-script
+criteria: {colorId: 'red|colors.name>colors._id'}
+```
+
+Or just an identity:
+
+```coffee-script
+criteria: {colorId: '@myColorId'}
+```
+
 * Manifest
 
-The manifest is a data structure which controls what fields get pushed out to a Collector.  It treats arrays and objects the same, and does not care about data types.  It will be applied to any data returned by the Payload or Delta functions.  It is comprised of nested objects and boolean values.  Data is not represented by default, so only the value 'true' has any meaning.  You can use 'false' for explicit documentation if you would like.
+The manifest controls what fields get pushed out to a Collector.  It acts like a Mongo 'project' query modifier.
 
 You can assign 'true' at any point in the data structure.  For instance, if you put 'true' at the root then no data will be filtered.
-
-* Payload
-
-This function is responsible for retrieving initial data when a new Collector registers.  It is passed the Identity associated with this Collector, and a callback function (err, data) for returning the data.  You can use the Identity to limit the fields returned.  The data returned by a Mongo query is suitable for this.  Essentially it needs to be a collection of documents, where each document is comprised of a root object and nested objects, arrays, and data values.
-
-* Delta
-
-This function is passed the Identity of the Collector, and a receiver function.  It is responsible for wiring up some kind of event source which will be forwarded by the Stream to any registered Collectors.
-
-I wrote a library for listening to the mongo oplog which can be used for this purpose.  You can find it [here](https://github.com/torchlightsoftware/mongo-watch).  You want to use the 'normal' format to get a message format compatible with Particle.  Note that this will not work for shared DB hosting solutions.  If you are interested in getting something working for that sort of platform I have some ideas... please contact me.
 
 ### Identity Lookup*
 
